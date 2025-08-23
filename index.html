@@ -2,22 +2,19 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  />
-  <title>Vier gewinnt AR – Step 6 (DOM Overlay Fix)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vier gewinnt AR – Step 7 (manuelle Persistenz)</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- DOM Overlay Root -->
-  <div id="hud" class="panel" tabindex="0">
+  <div id="hud" class="panel">
     <div class="row">
       <h1 class="title">Vier gewinnt AR</h1>
-      <span class="build">[C4-STEP-6]</span>
+      <span class="build">[C4-STEP-6+7]</span>
     </div>
     <p id="hint">Ziele auf eine Fläche → Trigger/Pinch platziert das Brett.</p>
 
+    <!-- Falls du in Step 6 schon eine Control-Leiste hast, diese hier 1:1 lassen -->
     <div class="controls">
       <div class="row wrap">
         <button id="btnReset" class="btn">Neu/Reset</button>
@@ -54,6 +51,13 @@
         <label class="chk"><input type="checkbox" id="chkSfx" checked> SFX</label>
         <label class="chk"><input type="checkbox" id="chkHap" checked> Haptik</label>
         <label class="chk"><input type="checkbox" id="chkShadows"> Schatten</label>
+      </div>
+
+      <!-- NEU: Manuelle Persistenz (kein Auto-Load) -->
+      <div class="row wrap">
+        <button id="btnSave" class="btn">Speichern</button>
+        <button id="btnLoad" class="btn">Laden</button>
+        <button id="btnClear" class="btn">Löschen</button>
       </div>
     </div>
   </div>
