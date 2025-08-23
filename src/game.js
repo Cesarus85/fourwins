@@ -232,7 +232,7 @@ function highlightWinCells(cells) {
     const oldScale = m.scale.clone();
     m.scale.set(oldScale.x * 1.12, oldScale.y * 1.12, oldScale.z * 1.12);
 
-    highlighted.push({ mesh: m, matOld, scaleOld: oldScale });
+    highlighted.push({ mesh: m, matOld, matNew, scaleOld: oldScale });
   }
 }
 
@@ -243,6 +243,9 @@ function clearWinHighlight() {
       if (h.mesh) {
         if (h.matOld) h.mesh.material = h.matOld;
         if (h.scaleOld) h.mesh.scale.copy(h.scaleOld);
+      }
+      if (h.matNew && typeof h.matNew.dispose === 'function') {
+        h.matNew.dispose();
       }
     } catch {}
   }
