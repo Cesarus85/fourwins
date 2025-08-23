@@ -1,18 +1,24 @@
-// [C4-STEP-4] Game State + Turn-Handling + Win/Draw-Check + Drop-Animation
+// [C4-STEP-5] Game State + KI-Integration (Zugwechsel, Denken, Drop)
 
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
+import { chooseAiMove } from './ai.js';
 
-let boardObj = null;           // THREE.Group (Board)
-let boardState = null;         // 2D-Array [row][col] 0=leer,1=Gelb,2=Rot
+let boardObj = null;
+let boardState = null;
 let cols = 7, rows = 6;
 
-let currentPlayer = 1;         // 1 = Gelb (Spieler), 2 = Rot (zweiter Spieler/AI)
+let currentPlayer = 1;   // 1 = Gelb (Du), 2 = Rot (KI)
 let movesCount = 0;
 let gameOver = false;
-let busy = false;              // true während Drop-Animation
+let busy = false;
 
-const activeDrops = [];        // laufende Drops
-const listeners = [];          // Game-Events
+const activeDrops = [];
+const listeners = [];
+
+const aiEnabled = true;
+let aiTimer = 0;         // „Denk“-Verzögerung
+const aiDelayS = 0.35;   // kleine Pause für Natürlichkeit
+let aiPending = false;
 
 export function initGame(board) {
   boardObj = board;
@@ -23,155 +29,138 @@ export function initGame(board) {
   movesCount = 0;
   gameOver = false;
   busy = false;
+  aiTimer = 0;
+  aiPending = false;
   activeDrops.length = 0;
   emit({ type: 'turn', player: currentPlayer });
 }
 
-export function onGameEvent(fn) {
-  if (typeof fn === 'function') listeners.push(fn);
-}
-
-function emit(evt) {
-  for (const fn of listeners) {
-    try { fn(evt); } catch {}
-  }
-}
+export function onGameEvent(fn) { if (typeof fn === 'function') listeners.push(fn); }
+function emit(evt) { for (const fn of listeners) { try { fn(evt); } catch {} } }
 
 export function getBoardObject() { return boardObj; }
 export function getBoardState()  { return boardState; }
 export function getCurrentPlayer(){ return currentPlayer; }
 export function isGameOver()     { return gameOver; }
 
-// Highlight steuern (bei GameOver ausblenden)
+// Highlight: während KI-Zug ausblenden
 export function highlightColumn(colIndex) {
   if (!boardObj) return;
-  if (gameOver) { setHighlight(boardObj, null); return; }
+  if (gameOver || currentPlayer === 2) { setHighlight(boardObj, null); return; }
   setHighlight(boardObj, colIndex);
 }
 
-// Nächste freie Zeile in Spalte (0 = unterste Reihe)
+// freie Zeile suchen
 export function nextFreeRow(col) {
   for (let r = 0; r < rows; r++) if (boardState[r][col] === 0) return r;
   return -1;
 }
 
-// Versuch, im aktuellen Zug einen Stein in Spalte zu setzen
-// Rückgabe: true bei Start der Drop-Animation, sonst false
+// Spielersetzung (nur wenn Spieler 1 dran)
 export function placeDiscHuman(col) {
-  if (!boardObj || gameOver || busy) return false;
-  if (col < 0 || col >= cols) return false;
-
-  const row = nextFreeRow(col);
-  if (row < 0) {
-    emit({ type: 'invalid', reason: 'column_full', col });
+  if (!boardObj || gameOver || busy || currentPlayer !== 1) {
+    if (currentPlayer !== 1) emit({ type: 'invalid', reason: 'not_your_turn' });
     return false;
   }
+  return placeDisc(col, 1);
+}
 
-  // Zustand sofort reservieren
-  boardState[row][col] = currentPlayer;
+// Interne Routine für beide Spieler
+function placeDisc(col, player) {
+  if (col < 0 || col >= cols) return false;
+  const row = nextFreeRow(col);
+  if (row < 0) { emit({ type: 'invalid', reason: 'column_full', col }); return false; }
+
+  boardState[row][col] = player;
   movesCount++;
 
-  // Mesh erzeugen & animieren
-  const disc = createDiscMesh(currentPlayer);
+  const disc = createDiscMesh(player);
   boardObj.add(disc);
 
   const target = cellLocalCenter(boardObj, col, row);
   const startY = spawnYLocal(boardObj);
-
   disc.position.set(target.x, startY, target.z);
-  queueDrop({ mesh: disc, targetY: target.y, row, col, player: currentPlayer });
 
-  busy = true; // bis Drop fertig ist, keine weiteren Züge
+  queueDrop({ mesh: disc, targetY: target.y, row, col, player });
+  busy = true;
   return true;
 }
 
-// Drop-Queue + Animation
-function queueDrop(drop) {
-  activeDrops.push({
-    ...drop,
-    vy: 0.0
-  });
-}
+function queueDrop(drop) { activeDrops.push({ ...drop, vy: 0.0 }); }
 
 export function update(dt) {
-  if (activeDrops.length === 0) return;
-
-  const g = -3.0;     // "Mond"-Gravitation
-  const maxVy = -2.2;
-
-  for (let i = activeDrops.length - 1; i >= 0; i--) {
-    const d = activeDrops[i];
-    d.vy = Math.max(d.vy + g * dt, maxVy);
-    d.mesh.position.y += d.vy * dt;
-
-    if (d.mesh.position.y <= d.targetY) {
-      d.mesh.position.y = d.targetY;
-
-      // Drop fertig
-      activeDrops.splice(i, 1);
-
-      // Nachlauf: Sieg/Remis prüfen & ggf. Turn wechseln
-      postMoveResolve(d.row, d.col, d.player);
+  // Animationen
+  if (activeDrops.length > 0) {
+    const g = -3.0, maxVy = -2.2;
+    for (let i = activeDrops.length - 1; i >= 0; i--) {
+      const d = activeDrops[i];
+      d.vy = Math.max(d.vy + g * dt, maxVy);
+      d.mesh.position.y += d.vy * dt;
+      if (d.mesh.position.y <= d.targetY) {
+        d.mesh.position.y = d.targetY;
+        activeDrops.splice(i, 1);
+        postMoveResolve(d.row, d.col, d.player);
+      }
     }
   }
+
+  // KI-Zug triggern, sobald dran & nicht beschäftigt
+  if (!gameOver && !busy && aiEnabled && currentPlayer === 2) {
+    if (!aiPending) {
+      aiPending = true;
+      aiTimer = aiDelayS;
+      emit({ type: 'ai_turn' }); // HUD: „KI denkt…“
+    } else {
+      aiTimer -= dt;
+      if (aiTimer <= 0) {
+        const col = chooseAiMove(boardState);
+        const chosen = (col >= 0) ? col : firstValidCol();
+        placeDisc(chosen, 2);
+        aiPending = false;
+      }
+    }
+  }
+}
+
+function firstValidCol() {
+  for (let c = 0; c < cols; c++) if (nextFreeRow(c) !== -1) return c;
+  return -1;
 }
 
 // Nach einem gesetzten Stein: Sieg/Remis/Turn
 function postMoveResolve(row, col, player) {
   if (checkWinAt(row, col, player)) {
-    gameOver = true;
-    busy = false;
+    gameOver = true; busy = false;
     emit({ type: 'win', player, row, col });
     return;
   }
-
   if (movesCount >= rows * cols) {
-    gameOver = true;
-    busy = false;
+    gameOver = true; busy = false;
     emit({ type: 'draw' });
     return;
   }
 
-  // Nächster Spieler
   currentPlayer = (player === 1) ? 2 : 1;
   busy = false;
   emit({ type: 'turn', player: currentPlayer });
 }
 
-// --------------- Gewinnprüfung -----------------------------------------------
-// Prüft Linien durch (row,col) in 4 Richtungen: H, V, Diag /, Diag \
+// Gewinnprüfung (lokal auf boardState)
 function checkWinAt(row, col, player) {
-  // Horizontal (0,1)
   if (countLine(row, col, 0, 1, player) >= 4) return true;
-  // Vertikal (1,0)
   if (countLine(row, col, 1, 0, player) >= 4) return true;
-  // Diagonal (1,1)   ↘︎ / ↖︎
   if (countLine(row, col, 1, 1, player) >= 4) return true;
-  // Diagonal (1,-1)  ↙︎ / ↗︎
   if (countLine(row, col, 1, -1, player) >= 4) return true;
-
   return false;
 }
 
-// Zählt zusammenhängende Steine in beiden Richtungen (dr,dc) und (-dr,-dc)
 function countLine(row, col, dr, dc, player) {
   let total = 1;
-
-  // vorwärts
   let r = row + dr, c = col + dc;
-  while (inBounds(r, c) && boardState[r][c] === player) {
-    total++; r += dr; c += dc;
-  }
-
-  // rückwärts
+  while (inBounds(r, c) && boardState[r][c] === player) { total++; r += dr; c += dc; }
   r = row - dr; c = col - dc;
-  while (inBounds(r, c) && boardState[r][c] === player) {
-    total++; r -= dr; c -= dc;
-  }
-
+  while (inBounds(r, c) && boardState[r][c] === player) { total++; r -= dr; c -= dc; }
   return total;
 }
 
-function inBounds(r, c) {
-  return r >= 0 && r < rows && c >= 0 && c < cols;
-}
+function inBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
