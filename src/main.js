@@ -1,4 +1,4 @@
-// [C4-STEP-6+7] Main: Schritt 6 (SFX/Haptik/Undo/Schatten/HUD) + manuelle Persistenz (Save/Load)
+// [C4-STEP-6 + SAVE-FIX] Step 6 Logik + verlässliches Speichern/Laden + Export/Import
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { ARButton } from 'https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js';
@@ -55,11 +55,12 @@ function init() {
   setupAR(renderer, scene);
   setupInput(renderer, camera);
 
-  // AR-Button (ohne DOM Overlay – wie in Step 6)
+  // AR-Button (wie in Step 6)
   const btn = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'], optionalFeatures: [] });
   document.body.appendChild(btn);
 
   wireUiControls();
+  initStoreStatus();
 
   // Game-Events -> HUD + SFX/Haptik
   onGameEvent((ev) => {
@@ -77,29 +78,20 @@ function init() {
         if (hint) hint.textContent = 'Rot (KI) denkt …';
         break;
       case 'place':
-        if (SFX) sfxPlace();
-        if (HAP) buzzSelect(session);
-        break;
+        if (SFX) sfxPlace(); if (HAP) buzzSelect(session); break;
       case 'landed':
-        if (SFX) sfxLanded();
-        if (HAP) buzzLanded(session);
-        break;
+        if (SFX) sfxLanded(); if (HAP) buzzLanded(session); break;
       case 'win':
         if (hint) hint.textContent = ev.player === 1 ? 'Gelb gewinnt! 🎉' : 'Rot (KI) gewinnt! 🤖🏆';
-        if (SFX) sfxWin();
-        if (HAP) buzzWin(session);
-        break;
+        if (SFX) sfxWin(); if (HAP) buzzWin(session); break;
       case 'draw':
         if (hint) hint.textContent = 'Unentschieden – keine freien Felder.';
-        if (SFX) sfxDraw();
-        break;
+        if (SFX) sfxDraw(); break;
       case 'invalid':
         if (hint) hint.textContent = ev.reason === 'column_full'
           ? 'Spalte ist voll – wähle eine andere.'
           : 'Bitte warte – du bist nicht dran.';
-        if (SFX) sfxInvalid();
-        if (HAP) buzzInvalid(session);
-        break;
+        if (SFX) sfxInvalid(); if (HAP) buzzInvalid(session); break;
     }
   });
 
@@ -152,49 +144,78 @@ function wireUiControls() {
   const elLoad  = document.getElementById('btnLoad');
   const elClear = document.getElementById('btnClear');
 
+  const elExport = document.getElementById('btnExport');
+  const elImport = document.getElementById('btnImport');
+  const elFile   = document.getElementById('fileImport');
+
   elReset?.addEventListener('click', () => resetGame());
   elUndo1?.addEventListener('click', () => undo(1));
   elUndo2?.addEventListener('click', () => undo(2));
 
-  elMode?.addEventListener('change', () => {
-    setAiOptions({ mode: elMode.value });
-  });
-  elDepth?.addEventListener('change', () => {
-    setAiOptions({ depth: parseInt(elDepth.value, 10) });
-  });
-  elTime?.addEventListener('change', () => {
-    setAiOptions({ timeMs: parseInt(elTime.value, 10) });
-  });
+  elMode?.addEventListener('change', () => setAiOptions({ mode: elMode.value }));
+  elDepth?.addEventListener('change', () => setAiOptions({ depth: parseInt(elDepth.value, 10) }));
+  elTime?.addEventListener('change', () => setAiOptions({ timeMs: parseInt(elTime.value, 10) }));
 
-  elSfx?.addEventListener('change', () => {
-    SFX = elSfx.checked; setSfxEnabled(SFX); if (SFX) ensureAudio();
-  });
-  elHap?.addEventListener('change', () => {
-    HAP = elHap.checked; setHapticsEnabled(HAP);
-  });
+  elSfx?.addEventListener('change', () => { SFX = elSfx.checked; setSfxEnabled(SFX); if (SFX) ensureAudio(); });
+  elHap?.addEventListener('change', () => { HAP = elHap.checked; setHapticsEnabled(HAP); });
   elShad?.addEventListener('change', () => {
     SHADOWS = elShad.checked;
     if (renderer) renderer.shadowMap.enabled = SHADOWS;
   });
 
-  // Persistenz-Buttons
+  // Speichern
   elSave?.addEventListener('click', () => {
     const ok = storage.save(collectPersistData());
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = ok ? 'Gespeichert.' : 'Speichern fehlgeschlagen.';
+    notify(ok ? 'Gespeichert.' : 'Speichern fehlgeschlagen: ' + (storage.lastError() || ''));
   });
 
+  // Laden
   elLoad?.addEventListener('click', () => {
     const ok = loadFromStorage();
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = ok ? 'Geladen.' : 'Kein Speicherstand gefunden.';
+    notify(ok ? 'Geladen.' : 'Kein Speicherstand gefunden (oder nicht verfügbar).');
   });
 
+  // Löschen
   elClear?.addEventListener('click', () => {
-    storage.clear();
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'Speicherstand gelöscht.';
+    const ok = storage.clear();
+    notify(ok ? 'Speicherstand gelöscht.' : 'Konnte Speicher nicht leeren: ' + (storage.lastError() || ''));
   });
+
+  // Export/Import
+  elExport?.addEventListener('click', () => {
+    const blob = storage.toBlob(collectPersistData());
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `vier-gewinnt-ar-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    notify('Export erstellt.');
+  });
+
+  elImport?.addEventListener('click', () => elFile?.click());
+  elFile?.addEventListener('change', async () => {
+    const file = elFile.files?.[0];
+    if (!file) return;
+    try {
+      const obj = await storage.fromFile(file);
+      applyLoadedObject(obj);
+      notify('Import erfolgreich.');
+    } catch (e) {
+      notify('Import fehlgeschlagen: ' + (e?.message || e));
+    } finally {
+      elFile.value = '';
+    }
+  });
+}
+
+function initStoreStatus() {
+  const ok = storage.isAvailable();
+  const el = document.getElementById('storeStatus');
+  if (el) {
+    el.textContent = ok ? 'Speicher: OK (localStorage)' : 'Speicher: nicht verfügbar – nutze Export/Import';
+  }
+  if (!ok) console.warn('localStorage nicht verfügbar:', storage.lastError());
 }
 
 // Snapshot zusammenstellen (Einstellungen + Pose + Spiel)
@@ -211,11 +232,15 @@ function collectPersistData() {
   };
 }
 
-// Laden: Pose + Spielstand (kein Auto-Load, keine Änderung an Reticle/Hit-Test)
+// Laden aus localStorage (wenn verfügbar)
 function loadFromStorage() {
   const st = storage.load();
   if (!st) return false;
+  return applyLoadedObject(st);
+}
 
+// Gemeinsamer Apply-Pfad (für Load & Import)
+function applyLoadedObject(st) {
   // Optionen anwenden
   SFX = !!st.options?.sfx; setSfxEnabled(SFX);
   HAP = !!st.options?.haptics; setHapticsEnabled(HAP);
@@ -235,16 +260,21 @@ function loadFromStorage() {
     const ret = getReticle(); if (ret) ret.visible = false;
   }
 
-  // Pose wiederherstellen
+  // Pose wiederherstellen (wenn vorhanden)
   if (st.board?.position && st.board?.quaternion) {
     boardRoot.position.fromArray(st.board.position);
     boardRoot.quaternion.fromArray(st.board.quaternion);
   }
 
-  // Spielstand importieren
+  // Spielzustand importieren
   if (st.game) importSnapshot(st.game);
 
   return true;
+}
+
+function notify(msg) {
+  const hint = document.getElementById('hint');
+  if (hint) hint.textContent = msg;
 }
 
 function onWindowResize() {
