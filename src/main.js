@@ -1,11 +1,11 @@
-// [C4-STEP-3] AR Bootstrap + Board-Platzierung + Input/Animation-Loop
+// [C4-STEP-4] AR Bootstrap + Board-Platzierung + Input/Animation + HUD-Events
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { ARButton } from 'https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js';
 
 import { setupAR, updateHitTest, getReticle, onFirstSelect } from './ar.js';
 import { createBoard } from './board.js';
-import { initGame, update as updateGame } from './game.js';
+import { initGame, update as updateGame, onGameEvent } from './game.js';
 import { setupInput, updateInput } from './input.js';
 
 let renderer, scene, camera;
@@ -41,6 +41,27 @@ function init() {
     optionalFeatures: []
   }));
 
+  // Game-Events -> HUD-Text
+  onGameEvent((ev) => {
+    const hint = document.getElementById('hint');
+    if (!hint) return;
+
+    switch (ev.type) {
+      case 'turn':
+        hint.textContent = ev.player === 1 ? 'Gelb ist dran (Du) – wähle eine Spalte.' : 'Rot ist dran – wähle eine Spalte.';
+        break;
+      case 'win':
+        hint.textContent = ev.player === 1 ? 'Gelb gewinnt! 🎉' : 'Rot gewinnt! 🎉';
+        break;
+      case 'draw':
+        hint.textContent = 'Unentschieden – keine freien Felder mehr.';
+        break;
+      case 'invalid':
+        hint.textContent = 'Spalte ist voll – wähle eine andere.';
+        break;
+    }
+  });
+
   // Platzierung des Boards per erstem Select
   onFirstSelect(renderer, () => {
     if (boardPlaced) return;
@@ -63,7 +84,7 @@ function init() {
     boardPlaced = true;
 
     const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'Brett platziert. Ray-Ziel auf Spalten → Select setzt gelben Stein.';
+    if (hint) hint.textContent = 'Brett platziert. Gelb beginnt – visiere eine Spalte an und drücke Select.';
   });
 
   window.addEventListener('resize', onWindowResize);
@@ -75,9 +96,7 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function animate() {
-  renderer.setAnimationLoop(render);
-}
+function animate() { renderer.setAnimationLoop(render); }
 
 function render(ts, frame) {
   const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0;
@@ -87,7 +106,7 @@ function render(ts, frame) {
     updateHitTest(renderer, frame);
   } else {
     updateInput(frame);   // Raycast -> Highlight / Select
-    updateGame(dt);       // Drop-Animation
+    updateGame(dt);       // Drop-Animation + Win/Draw
   }
 
   renderer.render(scene, camera);
