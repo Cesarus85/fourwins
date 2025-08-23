@@ -3,14 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Vier gewinnt AR – Step 2</title>
+  <title>Vier gewinnt AR – Step 6</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="hud">
-    <h1>Vier gewinnt AR</h1>
+  <div id="hud" class="panel">
+    <div class="row">
+      <h1 class="title">Vier gewinnt AR</h1>
+      <span class="build">[C4-STEP-6]</span>
+    </div>
     <p id="hint">Ziele auf eine Fläche → Trigger/Pinch platziert das Brett.</p>
-    <p class="tiny">Build: <code>[C4-STEP-2]</code></p>
+
+    <div class="controls">
+      <div class="row wrap">
+        <button id="btnReset" class="btn">Neu/Reset</button>
+        <button id="btnUndo1" class="btn">Undo 1</button>
+        <button id="btnUndo2" class="btn">Undo 2</button>
+
+        <label class="lb">KI:
+          <select id="aiMode">
+            <option value="heuristic">Heuristik (schnell)</option>
+            <option value="minimax" selected>Minimax (stärker)</option>
+          </select>
+        </label>
+
+        <label class="lb">Tiefe
+          <select id="aiDepth">
+            <option>4</option>
+            <option selected>5</option>
+            <option>6</option>
+            <option>7</option>
+          </select>
+        </label>
+
+        <label class="lb">Zeit ms
+          <select id="aiTime">
+            <option>250</option>
+            <option selected>350</option>
+            <option>600</option>
+            <option>800</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row wrap">
+        <label class="chk"><input type="checkbox" id="chkSfx" checked> SFX</label>
+        <label class="chk"><input type="checkbox" id="chkHap" checked> Haptik</label>
+        <label class="chk"><input type="checkbox" id="chkShadows"> Schatten</label>
+      </div>
+    </div>
   </div>
 
   <script type="module">
