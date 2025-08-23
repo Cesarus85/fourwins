@@ -1,4 +1,4 @@
-// [C4-STEP-1] AR Bootstrap + Reticle + Board-Placement
+// [C4-STEP-1] AR Bootstrap + Reticle (fix) + Brett-Platzierung
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { ARButton } from 'https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js';
@@ -21,39 +21,42 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Scene & Camera
+  // Szene & Kamera
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 20);
 
-  // Licht (soft, AR passt die Beleuchtung an die reale Szene an)
-  const light = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
-  scene.add(light);
+  // Licht
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+  scene.add(hemi);
 
-  // Reticle / Hit-Test vorbereiten
+  // AR vorbereiten (Reticle + Hit-Test)
   setupAR(renderer, scene);
 
   // AR-Button
   const button = ARButton.createButton(renderer, {
-    requiredFeatures: ['hit-test'], // Kern für Platzierung
-    optionalFeatures: []            // hand-tracking/dom-overlay später
+    requiredFeatures: ['hit-test'],
+    optionalFeatures: []
   });
   document.body.appendChild(button);
 
-  // Select-Handler: Erstes Select platziert das Brett an der Reticle-Position
+  // Erstes Select platziert das Brett an der Reticle-Pose
   onFirstSelect(renderer, () => {
     if (boardPlaced) return;
-    const reticle = getReticle();
-    if (!reticle || !reticle.visible) return;
+    const ret = getReticle();
+    if (!ret || !ret.visible) return;
 
-    // Brett (Platzhalter) erzeugen und an Reticle-Pos/Rot ablegen
     boardRoot = createBoardPlaceholder();
-    boardRoot.position.setFromMatrixPosition(reticle.matrix);
-    boardRoot.quaternion.setFromRotationMatrix(reticle.matrix);
+    boardRoot.position.copy(ret.position);
+    boardRoot.quaternion.copy(ret.quaternion);
+    boardRoot.position.y += 0.005; // minimal anheben, damit nichts clippt
     scene.add(boardRoot);
+
+    // Reticle ausblenden nach Platzierung
+    ret.visible = false;
 
     boardPlaced = true;
     const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'Brett platziert. Nächster Schritt: Raster & Eingaben (Schritt 2).';
+    if (hint) hint.textContent = 'Brett platziert. Weiter mit Schritt 2: Raster & Eingaben.';
   });
 
   window.addEventListener('resize', onWindowResize);
@@ -69,8 +72,7 @@ function animate() {
   renderer.setAnimationLoop(render);
 }
 
-function render(timestamp, frame) {
-  // Reticle & Hit-Test updaten, solange kein Brett liegt
+function render(_timestamp, frame) {
   if (!boardPlaced) {
     updateHitTest(renderer, frame);
   }
