@@ -7,12 +7,13 @@ import { setupAR, updateHitTest, getReticle, onFirstSelect } from './ar.js';
 import { createBoard } from './board.js';
 import {
   initGame, update as updateGame, onGameEvent,
-  setAiOptions, getAiOptions, resetGame, undo
+  setAiOptions, getAiOptions, resetGame, undo, applyState
 } from './game.js';
 import { setupInput, updateInput } from './input.js';
 
 import { setSfxEnabled, sfxPlace, sfxLanded, sfxInvalid, sfxWin, sfxDraw, sfxTurnAI, ensureAudio } from './sfx.js';
 import { setHapticsEnabled, buzzSelect, buzzLanded, buzzWin, buzzInvalid } from './haptics.js';
+import { load, clear } from './storage.js';
 
 let renderer, scene, camera;
 let boardPlaced = false;
@@ -20,6 +21,8 @@ let boardRoot = null;
 let lastTs = 0;
 
 let SFX = true, HAP = true, SHADOWS = false;
+let savedState = load();
+if (savedState?.ai) setAiOptions(savedState.ai);
 
 init();
 animate();
@@ -117,12 +120,15 @@ function init() {
 
     scene.add(boardRoot);
     initGame(boardRoot);
+    if (savedState?.history?.length) {
+      applyState(savedState);
+    } else {
+      const hint = document.getElementById('hint');
+      if (hint) hint.textContent = 'Brett platziert. Gelb beginnt – visiere eine Spalte & drücke Select.';
+    }
 
     ret.visible = false;
     boardPlaced = true;
-
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'Brett platziert. Gelb beginnt – visiere eine Spalte & drücke Select.';
   });
 
   window.addEventListener('resize', onWindowResize);
@@ -132,6 +138,7 @@ function wireUiControls() {
   const elReset = document.getElementById('btnReset');
   const elUndo1 = document.getElementById('btnUndo1');
   const elUndo2 = document.getElementById('btnUndo2');
+  const elClear = document.getElementById('btnClear');
   const elMode  = document.getElementById('aiMode');
   const elDepth = document.getElementById('aiDepth');
   const elTime  = document.getElementById('aiTime');
@@ -142,6 +149,7 @@ function wireUiControls() {
   elReset?.addEventListener('click', () => resetGame());
   elUndo1?.addEventListener('click', () => undo(1));
   elUndo2?.addEventListener('click', () => undo(2));
+  elClear?.addEventListener('click', () => { clear(); savedState = null; });
 
   elMode?.addEventListener('change', () => setAiOptions({ mode: elMode.value }));
   elDepth?.addEventListener('change', () => setAiOptions({ depth: parseInt(elDepth.value, 10) }));

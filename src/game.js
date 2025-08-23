@@ -3,6 +3,7 @@
 
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
 import { chooseAiMove } from './ai.js';
+import { save } from './storage.js';
 
 let boardObj = null;
 let boardState = null;       // [row][col] -> 0 leer, 1 Gelb, 2 Rot
@@ -60,6 +61,7 @@ export function setAiOptions(o) {
   if (o.depth != null)  aiOptions.depth = Math.max(1, o.depth|0);
   if (o.timeMs!= null)  aiOptions.timeMs = Math.max(50, o.timeMs|0);
   emit({ type:'ai_options', options: getAiOptions() });
+  if (boardObj) persist();
 }
 
 // Highlight während KI-Zug ausblenden
@@ -170,6 +172,7 @@ function postMoveResolve(_row, _col, _playerJustMoved) {
   currentPlayer = (_playerJustMoved === 1) ? 2 : 1;
   busy = false;
   emit({ type: 'turn', player: currentPlayer });
+  persist();
 }
 
 // ===== Vollscan-Gewinnprüfung mit Rückgabe der konkreten 4er-Zellen ==========
@@ -276,6 +279,7 @@ export function resetGame() {
   movesCount = 0; currentPlayer = 1;
   emit({ type:'reset' });
   emit({ type:'turn', player: currentPlayer });
+  persist();
 }
 
 export function undo(count = 1) {
@@ -307,7 +311,44 @@ export function undo(count = 1) {
     aiPending = false; aiTimer = 0;
     emit({ type:'undo', count:undone });
     emit({ type:'turn', player: currentPlayer });
+    persist();
     return true;
   }
   return false;
+}
+
+export function getState() {
+  return {
+    rows,
+    cols,
+    currentPlayer,
+    history: history.map(({ row, col, player }) => ({ row, col, player })),
+    ai: { ...aiOptions },
+    gameOver,
+  };
+}
+
+export function applyState(state) {
+  if (!boardObj || !state) return;
+  for (const mv of state.history || []) {
+    const disc = createDiscMesh(mv.player);
+    boardObj.add(disc);
+    const pos = cellLocalCenter(boardObj, mv.col, mv.row);
+    disc.position.set(pos.x, pos.y, pos.z);
+    boardState[mv.row][mv.col] = mv.player;
+    boardMeshes[mv.row][mv.col] = disc;
+    history.push({ row: mv.row, col: mv.col, player: mv.player, mesh: disc });
+  }
+  movesCount = history.length;
+  currentPlayer = state.currentPlayer || 1;
+  gameOver = state.gameOver || false;
+  if (gameOver) {
+    const res = computeWinner(boardState);
+    if (res) { winCells = res.cells; highlightWinCells(winCells); }
+  }
+  emit({ type: 'turn', player: currentPlayer });
+}
+
+function persist() {
+  save(getState());
 }
