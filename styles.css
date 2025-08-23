@@ -1,31 +1,33 @@
 :root {
+  /* Auf der Quest ist die CSS-Pixel-Dichte hoch → größere Basiswerte */
   --fs: clamp(16px, 2.2vh, 20px);
-  --btn-h: 44px;
+  --fs-sm: clamp(14px, 1.9vh, 18px);
+  --btn-h: 44px;          /* fingerfreundlich */
   --gap: .55rem;
 
   --bg: rgba(0,0,0,.65);
   --fg: #fff;
+  --muted: #cbd5e1;
+  --accent: #22ff88;
   --btn: #111827;
   --btnb: #374151;
-  --panelb: #334155;
-  --drop-bg: #0b1020;
 }
 
 html,body{
   margin:0; padding:0; overflow:hidden;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   font-size: var(--fs); line-height:1.25;
-  -webkit-user-select: none; user-select: none;
+  -webkit-user-select: none; user-select: none;  /* verhindert Textselect in XR */
 }
-canvas{ touch-action: none; pointer-events: none; } /* Canvas nicht klickbar */
 
 #hud.panel{
   position:fixed; left:12px; top:12px; z-index: 9999;
   color:var(--fg); background:var(--bg); backdrop-filter: blur(6px);
-  border:1px solid var(--panelb); border-radius:12px;
+  border:1px solid #334155; border-radius:12px;
   padding:12px 14px; max-width:min(94vw, 980px);
-  pointer-events:auto;
+  pointer-events:auto;  /* wichtig für DOM Overlay */
 }
+
 .title{font-size:1.05em; margin:0 .5rem 0 0}
 .build{opacity:.75; font-size: .85em}
 #hint{margin:.35rem 0 .6rem 0; color:#e5e7eb; font-size:1em}
@@ -33,6 +35,7 @@ canvas{ touch-action: none; pointer-events: none; } /* Canvas nicht klickbar */
 .controls{display:flex; flex-direction:column; gap: var(--gap)}
 .row{display:flex; align-items:center; gap:.6rem}
 .wrap{flex-wrap:wrap}
+
 .lb{font-size:1em; opacity:.95; display:flex; align-items:center; gap:.4rem}
 .chk{font-size:1em; opacity:.95; display:flex; align-items:center; gap:.35rem}
 
@@ -43,25 +46,11 @@ canvas{ touch-action: none; pointer-events: none; } /* Canvas nicht klickbar */
 }
 .btn:hover{border-color:#6b7280}
 
+select{
+  background:#0b1020; color:#e5e7eb; border:1px solid #334155;
+  border-radius:10px; padding:0 .6rem; height: var(--btn-h);
+  font-size:1em; min-width: 120px;
+}
 input[type="checkbox"]{ width:22px; height:22px }
 
-/* ===== Custom Dropdown ===== */
-.dd{ position:relative; display:inline-block; }
-.dd-btn{
-  background:var(--drop-bg); color:#e5e7eb; border:1px solid var(--panelb);
-  border-radius:10px; padding:0 .6rem; height: var(--btn-h);
-  font-size:1em; min-width: 140px; cursor:pointer;
-}
-.dd-list{
-  position:absolute; left:0; top:calc(100% + 6px);
-  background:var(--drop-bg); color:#e5e7eb;
-  border:1px solid var(--panelb); border-radius:10px;
-  list-style:none; margin:0; padding:6px 0; min-width: 100%;
-  box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  display:none; max-height: 45vh; overflow:auto; z-index: 10000;
-}
-.dd.open .dd-list{ display:block; }
-.dd-list li{
-  padding:.5rem .75rem; white-space:nowrap; cursor:pointer;
-}
-.dd-list li:hover{ background:#0e1626; }
+canvas{ touch-action: none; } /* verhindert ungewolltes Scrollen/Zoom */

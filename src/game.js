@@ -1,4 +1,5 @@
-// [C4-STEP-7] Game + robuste Winprüfung + Export/Import Snapshot (Persistenz)
+// [C4-STEP-6-FIX] Game State + robuste Gewinnprüfung (Vollscan) + Win-Highlight
+// Beinhaltet: KI (aus 5b), Reset/Undo, SFX/Haptik-Events wie zuvor
 
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
 import { chooseAiMove } from './ai.js';
@@ -24,8 +25,8 @@ const aiDelayS = 0.35;
 let aiPending = false;
 
 // Win-Highlight
-let winCells = null;
-let highlighted = [];
+let winCells = null;         // Array<{r,c}>
+let highlighted = [];        // referenzen auf Meshes mit revert-Info
 
 export function initGame(board) {
   boardObj = board;
@@ -96,7 +97,10 @@ function placeDisc(col, player) {
   const startY = spawnYLocal(boardObj);
   disc.position.set(target.x, startY, target.z);
 
+  // Mesh im Raster merken (für Win-Highlight & Undo)
   boardMeshes[row][col] = disc;
+
+  // Historie
   history.push({ row, col, player, mesh: disc });
 
   emit({ type: 'place', player, row, col });
@@ -124,7 +128,7 @@ export function update(dt) {
     }
   }
 
-  // KI-Zug
+  // KI-Zug einplanen
   if (!gameOver && !busy && aiEnabled && currentPlayer === 2) {
     if (!aiPending) {
       aiPending = true; aiTimer = aiDelayS; emit({ type: 'ai_turn' });
@@ -145,7 +149,8 @@ function firstValidCol() {
   return -1;
 }
 
-// Vollscan nach jedem Zug
+// Nach jedem Zug: Vollscan statt nur "am gesetzten Stein"
+// So vermeiden wir Edge-Cases und können klar die Gewinnzellen zurückgeben.
 function postMoveResolve(_row, _col, _playerJustMoved) {
   const res = computeWinner(boardState);
   if (res) {
@@ -167,8 +172,9 @@ function postMoveResolve(_row, _col, _playerJustMoved) {
   emit({ type: 'turn', player: currentPlayer });
 }
 
-// ===== Gewinnprüfung mit konkreten Zellen ====================================
+// ===== Vollscan-Gewinnprüfung mit Rückgabe der konkreten 4er-Zellen ==========
 function computeWinner(board) {
+  // Richtungspaare: H, V, Diag ↘, Diag ↗
   const dirs = [
     { dr: 0, dc: 1 },
     { dr: 1, dc: 0 },
@@ -181,36 +187,55 @@ function computeWinner(board) {
         if (board[r][c] !== player) continue;
         for (const { dr, dc } of dirs) {
           const cells = [{ r, c }];
+          // forward
           let rr = r + dr, cc = c + dc;
-          while (inBounds(rr, cc) && board[rr][cc] === player) { cells.push({ r: rr, c: cc }); rr += dr; cc += dc; }
+          while (inBounds(rr, cc) && board[rr][cc] === player) {
+            cells.push({ r: rr, c: cc });
+            rr += dr; cc += dc;
+          }
+          // backward
           rr = r - dr; cc = c - dc;
-          while (inBounds(rr, cc) && board[rr][cc] === player) { cells.unshift({ r: rr, c: cc }); rr -= dr; cc -= dc; }
-          if (cells.length >= 4) return { player, cells: cells.slice(0, 4) };
+          while (inBounds(rr, cc) && board[rr][cc] === player) {
+            cells.unshift({ r: rr, c: cc });
+            rr -= dr; cc -= dc;
+          }
+          if (cells.length >= 4) {
+            // gib die ersten 4 zusammenhängenden zurück (oder alle, wenn du magst)
+            return { player, cells: cells.slice(0, 4) };
+          }
         }
       }
     }
   }
   return null;
 }
+
 function inBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
 
-// ===== Win-Highlight =========================================================
+// ===== Win-Highlight (optisch unmissverständlich) ============================
 function highlightWinCells(cells) {
   clearWinHighlight();
   if (!cells || cells.length === 0) return;
+
   for (const { r, c } of cells) {
-    const m = boardMeshes?.[r]?.[c]; if (!m) continue;
+    const m = boardMeshes?.[r]?.[c];
+    if (!m) continue;
+    // Material kopieren, damit wir Emissive ändern können ohne andere Discs zu beeinflussen
     const matOld = m.material;
     const matNew = matOld.clone();
-    matNew.emissive = matNew.emissive || { setHex:()=>{} };
+    matNew.emissive = matNew.emissive ? matNew.emissive : { setHex:()=>{} };
     matNew.emissiveIntensity = 0.9;
     matNew.emissive?.setHex?.(0x22ff88);
     m.material = matNew;
+
+    // leichtes Scale-Up
     const oldScale = m.scale.clone();
     m.scale.set(oldScale.x * 1.12, oldScale.y * 1.12, oldScale.z * 1.12);
+
     highlighted.push({ mesh: m, matOld, scaleOld: oldScale });
   }
 }
+
 function clearWinHighlight() {
   if (!highlighted.length) return;
   for (const h of highlighted) {
@@ -227,16 +252,26 @@ function clearWinHighlight() {
 
 // ===== Reset & Undo ===========================================================
 export function resetGame() {
+  // Animationen/Flags
   activeDrops.length = 0; busy = false; aiPending = false; aiTimer = 0; gameOver = false;
+
+  // Win-Markierung zurücksetzen
   clearWinHighlight();
+
+  // alle Discs entfernen
   for (const mv of history) {
     try { boardObj.remove(mv.mesh); mv.mesh.geometry?.dispose?.(); mv.mesh.material?.dispose?.(); } catch {}
   }
   history.length = 0;
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    boardState[r][c] = 0;
-    const m = boardMeshes[r][c]; if (m) try { boardObj.remove(m); } catch {}
-    boardMeshes[r][c] = null;
+
+  // Board leeren
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      boardState[r][c] = 0;
+      const m = boardMeshes[r][c];
+      if (m) try { boardObj.remove(m); } catch {}
+      boardMeshes[r][c] = null;
+    }
   }
   movesCount = 0; currentPlayer = 1;
   emit({ type:'reset' });
@@ -245,17 +280,26 @@ export function resetGame() {
 
 export function undo(count = 1) {
   if (busy) return false;
-  clearWinHighlight(); gameOver = false;
+
+  // Win-Markierung entfernen (falls gerade vorhanden)
+  clearWinHighlight();
+  gameOver = false;
 
   let undone = 0;
   while (count-- > 0 && history.length > 0) {
     const mv = history.pop();
-    try { boardObj.remove(mv.mesh); mv.mesh.geometry?.dispose?.(); mv.mesh.material?.dispose?.(); } catch {}
+    // Mesh weg
+    try {
+      boardObj.remove(mv.mesh);
+      mv.mesh.geometry?.dispose?.();
+      mv.mesh.material?.dispose?.();
+    } catch {}
+    // State zurückdrehen
     if (boardState[mv.row][mv.col] !== 0) {
       boardState[mv.row][mv.col] = 0;
       boardMeshes[mv.row][mv.col] = null;
       movesCount = Math.max(0, movesCount - 1);
-      currentPlayer = mv.player;
+      currentPlayer = mv.player; // der Spieler ist wieder am Zug, der diesen Zug gemacht hatte
       undone++;
     }
   }
@@ -266,71 +310,4 @@ export function undo(count = 1) {
     return true;
   }
   return false;
-}
-
-// ===== Snapshot Export/Import (für Persistenz) ===============================
-export function exportSnapshot() {
-  return {
-    cols, rows,
-    boardState: boardState.map(row => row.slice()),
-    currentPlayer,
-    movesCount,
-    // für Undo genügt die Reihenfolge der Züge ohne Mesh
-    history: history.map(({row,col,player}) => ({row,col,player})),
-    gameOver
-  };
-}
-
-// Erwartet Snapshot wie oben; baut Meshes ohne Animation neu auf.
-export function importSnapshot(snap) {
-  if (!boardObj || !snap) return false;
-
-  // Reset vorher
-  activeDrops.length = 0; busy = false; aiPending = false; aiTimer = 0; gameOver = false;
-  clearWinHighlight();
-  for (const mv of history) {
-    try { boardObj.remove(mv.mesh); mv.mesh.geometry?.dispose?.(); mv.mesh.material?.dispose?.(); } catch {}
-  }
-  history.length = 0;
-
-  // State übernehmen
-  cols = snap.cols ?? cols;
-  rows = snap.rows ?? rows;
-  boardState  = Array.from({ length: rows }, (_,r)=> (snap.boardState?.[r]?.slice?.() ?? Array(cols).fill(0)));
-  boardMeshes = Array.from({ length: rows }, () => Array(cols).fill(null));
-  currentPlayer = snap.currentPlayer ?? 1;
-  movesCount = snap.movesCount ?? 0;
-  gameOver = !!snap.gameOver;
-
-  // Discs erzeugen
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const p = boardState[r][c];
-      if (p === 0) continue;
-      const disc = createDiscMesh(p);
-      const target = cellLocalCenter(boardObj, c, r);
-      disc.position.set(target.x, target.y, target.z);
-      boardObj.add(disc);
-      boardMeshes[r][c] = disc;
-    }
-  }
-
-  // History (ohne Mesh) wiederherstellen (Meshes schon gesetzt)
-  if (Array.isArray(snap.history)) {
-    for (const mv of snap.history) {
-      const m = boardMeshes[mv.row]?.[mv.col] || null;
-      history.push({ row: mv.row, col: mv.col, player: mv.player, mesh: m });
-    }
-  }
-
-  // Gewinnstatus neu berechnen/markieren
-  const res = computeWinner(boardState);
-  clearWinHighlight();
-  if (res) { gameOver = true; winCells = res.cells; highlightWinCells(winCells); }
-
-  // Events
-  emit({ type: 'reset' }); // weckt HUD auf
-  emit({ type: 'turn', player: currentPlayer });
-
-  return true;
 }
