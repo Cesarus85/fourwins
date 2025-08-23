@@ -1,4 +1,4 @@
-// [C4-STEP-2] WebXR Hit-Test + flaches Reticle + einmaliges Select
+// [C4-STEP-6 DOM] WebXR Hit-Test + Reticle + Select-Once (ignoriert 'screen'-Select)
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 
@@ -13,6 +13,7 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 const _qFlat = new THREE.Quaternion().setFromAxisAngle(_axisX, -Math.PI / 2);
 
 export function setupAR(renderer, scene) {
+  // Reticle
   reticle = new THREE.Mesh(
     new THREE.RingGeometry(0.07, 0.085, 32),
     new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide })
@@ -32,9 +33,7 @@ export function setupAR(renderer, scene) {
   });
 
   renderer.xr.addEventListener('sessionend', () => {
-    xrRefSpace = null;
-    hitTestSource = null;
-    viewerSpace = null;
+    xrRefSpace = null; hitTestSource = null; viewerSpace = null;
     if (reticle) reticle.visible = false;
     firstSelectBound = false;
   });
@@ -49,21 +48,31 @@ export function updateHitTest(renderer, frame) {
       reticle.visible = true;
       reticle.matrix.fromArray(pose.transform.matrix);
       reticle.matrix.decompose(reticle.position, reticle.quaternion, reticle.scale);
-      reticle.quaternion.multiply(_qFlat); // flach auf die Fläche
+      reticle.quaternion.multiply(_qFlat); // flach
     }
   } else {
     reticle.visible = false;
   }
 }
 
-export function getReticle() { return reticle; }
+export function getReticle(){ return reticle; }
 
 export function onFirstSelect(renderer, cb) {
   if (firstSelectBound) return;
   firstSelectBound = true;
+
   renderer.xr.addEventListener('sessionstart', () => {
     const session = renderer.xr.getSession();
-    const once = () => { try { cb?.(); } finally { session.removeEventListener('select', once); } };
+
+    const once = (ev) => {
+      // WICHTIG: Interaktionen im DOM Overlay liefern häufig targetRayMode 'screen'
+      // → diese ignorieren, damit Dropdowns nicht "weggeklickt" werden.
+      const src = ev?.inputSource;
+      if (src && src.targetRayMode === 'screen') return;
+
+      try { cb?.(); } finally { session.removeEventListener('select', once); }
+    };
+
     session.addEventListener('select', once);
   });
 }
