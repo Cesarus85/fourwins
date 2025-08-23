@@ -1,4 +1,4 @@
-// [C4-STEP-6 DOM] AR + DOM Overlay aktiviert + (Rest unverändert)
+// [C4-STEP-6 DOM FIX] DOM Overlay + Custom Dropdowns + UI-Lock
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { ARButton } from 'https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js';
@@ -14,11 +14,14 @@ import { setupInput, updateInput } from './input.js';
 import { setSfxEnabled, sfxPlace, sfxLanded, sfxInvalid, sfxWin, sfxDraw, sfxTurnAI, ensureAudio } from './sfx.js';
 import { setHapticsEnabled, buzzSelect, buzzLanded, buzzWin, buzzInvalid } from './haptics.js';
 
+import { initDropdown, setDropdownValue, getDropdownValue } from './ui.js';
+import { bindUiLock } from './overlay.js';
+
 let renderer, scene, camera;
 let boardPlaced = false;
 let boardRoot = null;
-let lastTs = 0;
 
+let lastTs = 0;
 let SFX = true, HAP = true, SHADOWS = false;
 
 init();
@@ -30,7 +33,7 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.xr.enabled = true;
   renderer.shadowMap.enabled = SHADOWS;
-  renderer.domElement.style.zIndex = 0; // HUD liegt drüber
+  renderer.domElement.style.zIndex = 0;
   document.body.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
@@ -50,14 +53,15 @@ function init() {
   setupAR(renderer, scene);
   setupInput(renderer, camera);
 
-  // >>> DOM Overlay aktivieren (Quest): <<<
+  const hud = document.getElementById('hud');
   const btn = ARButton.createButton(renderer, {
     requiredFeatures: ['hit-test'],
     optionalFeatures: ['dom-overlay'],
-    domOverlay: { root: document.getElementById('hud') || document.body }
+    domOverlay: { root: hud || document.body }
   });
   document.body.appendChild(btn);
 
+  bindUiLock(hud);
   wireUiControls();
 
   onGameEvent((ev) => {
@@ -93,8 +97,6 @@ function init() {
         if (hint) hint.textContent = 'Neues Spiel. Gelb beginnt.'; break;
       case 'undo':
         if (hint) hint.textContent = `Undo (${ev.count}).`; break;
-      case 'ai_options':
-        break;
     }
   });
 
@@ -103,7 +105,7 @@ function init() {
     const ret = getReticle();
     if (!ret || !ret.visible) return;
 
-    ensureAudio(); // erstes User-Event
+    ensureAudio();
 
     boardRoot = createBoard();
     boardRoot.position.copy(ret.position);
@@ -132,9 +134,11 @@ function wireUiControls() {
   const elReset = document.getElementById('btnReset');
   const elUndo1 = document.getElementById('btnUndo1');
   const elUndo2 = document.getElementById('btnUndo2');
-  const elMode  = document.getElementById('aiMode');
-  const elDepth = document.getElementById('aiDepth');
-  const elTime  = document.getElementById('aiTime');
+
+  const elMode  = document.getElementById('ddMode');
+  const elDepth = document.getElementById('ddDepth');
+  const elTime  = document.getElementById('ddTime');
+
   const elSfx   = document.getElementById('chkSfx');
   const elHap   = document.getElementById('chkHap');
   const elShad  = document.getElementById('chkShadows');
@@ -143,25 +147,33 @@ function wireUiControls() {
   elUndo1?.addEventListener('click', () => undo(1));
   elUndo2?.addEventListener('click', () => undo(2));
 
-  elMode?.addEventListener('change', () => setAiOptions({ mode: elMode.value }));
-  elDepth?.addEventListener('change', () => setAiOptions({ depth: parseInt(elDepth.value, 10) }));
-  elTime?.addEventListener('change', () => setAiOptions({ timeMs: parseInt(elTime.value, 10) }));
+  // Dropdown-Init + Änderungen weiterreichen
+  initDropdown(elMode, {
+    onChange: (val) => setAiOptions({ mode: val })
+  });
+  initDropdown(elDepth, {
+    onChange: (val) => setAiOptions({ depth: parseInt(val, 10) })
+  });
+  initDropdown(elTime, {
+    onChange: (val) => setAiOptions({ timeMs: parseInt(val, 10) })
+  });
 
-  elSfx?.addEventListener('change', () => { SFX = elSfx.checked; setSfxEnabled(SFX); if (SFX) ensureAudio(); });
-  elHap?.addEventListener('change', () => { HAP = elHap.checked; setHapticsEnabled(HAP); });
+  // Aktuelle AI-Optionen ins UI spiegeln
+  const ai = getAiOptions();
+  setDropdownValue(elMode,  ai.mode);
+  setDropdownValue(elDepth, String(ai.depth));
+  setDropdownValue(elTime,  String(ai.timeMs));
+
+  elSfx?.addEventListener('change', () => {
+    const on = elSfx.checked; setSfxEnabled(on);
+  });
+  elHap?.addEventListener('change', () => {
+    const on = elHap.checked; setHapticsEnabled(on);
+  });
   elShad?.addEventListener('change', () => {
     SHADOWS = elShad.checked;
     if (renderer) renderer.shadowMap.enabled = SHADOWS;
   });
-
-  // initiale Optionen spiegeln
-  const ai = getAiOptions();
-  if (elMode)  elMode.value  = ai.mode;
-  if (elDepth) elDepth.value = String(ai.depth);
-  if (elTime)  elTime.value  = String(ai.timeMs);
-  if (elSfx)   elSfx.checked = SFX;
-  if (elHap)   elHap.checked = HAP;
-  if (elShad)  elShad.checked= SHADOWS;
 }
 
 function onWindowResize() {

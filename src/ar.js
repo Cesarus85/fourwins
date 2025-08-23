@@ -1,6 +1,7 @@
-// [C4-STEP-6 DOM] WebXR Hit-Test + Reticle + Select-Once (ignoriert 'screen'-Select)
+// [C4-STEP-6 DOM FIX] Erstes Select ignoriert 'screen' & UI-Lock
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
+import { ui } from './overlay.js';
 
 let xrRefSpace = null;
 let hitTestSource = null;
@@ -13,7 +14,6 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 const _qFlat = new THREE.Quaternion().setFromAxisAngle(_axisX, -Math.PI / 2);
 
 export function setupAR(renderer, scene) {
-  // Reticle
   reticle = new THREE.Mesh(
     new THREE.RingGeometry(0.07, 0.085, 32),
     new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide })
@@ -48,7 +48,7 @@ export function updateHitTest(renderer, frame) {
       reticle.visible = true;
       reticle.matrix.fromArray(pose.transform.matrix);
       reticle.matrix.decompose(reticle.position, reticle.quaternion, reticle.scale);
-      reticle.quaternion.multiply(_qFlat); // flach
+      reticle.quaternion.multiply(_qFlat);
     }
   } else {
     reticle.visible = false;
@@ -65,8 +65,8 @@ export function onFirstSelect(renderer, cb) {
     const session = renderer.xr.getSession();
 
     const once = (ev) => {
-      // WICHTIG: Interaktionen im DOM Overlay liefern häufig targetRayMode 'screen'
-      // → diese ignorieren, damit Dropdowns nicht "weggeklickt" werden.
+      // DOM-Interaktion / 'screen' Eingaben ignorieren
+      if (ui.isLocked()) return;
       const src = ev?.inputSource;
       if (src && src.targetRayMode === 'screen') return;
 

@@ -24,29 +24,39 @@
         <button id="btnUndo1" class="btn">Undo 1</button>
         <button id="btnUndo2" class="btn">Undo 2</button>
 
+        <!-- Custom Dropdowns statt <select> -->
         <label class="lb">KI:
-          <select id="aiMode">
-            <option value="heuristic">Heuristik (schnell)</option>
-            <option value="minimax" selected>Minimax (stärker)</option>
-          </select>
+          <div class="dd" id="ddMode" data-value="minimax">
+            <button class="dd-btn" type="button">Minimax (stärker)</button>
+            <ul class="dd-list">
+              <li data-val="heuristic">Heuristik (schnell)</li>
+              <li data-val="minimax">Minimax (stärker)</li>
+            </ul>
+          </div>
         </label>
 
         <label class="lb">Tiefe
-          <select id="aiDepth">
-            <option>4</option>
-            <option selected>5</option>
-            <option>6</option>
-            <option>7</option>
-          </select>
+          <div class="dd" id="ddDepth" data-value="5">
+            <button class="dd-btn" type="button">5</button>
+            <ul class="dd-list">
+              <li data-val="4">4</li>
+              <li data-val="5">5</li>
+              <li data-val="6">6</li>
+              <li data-val="7">7</li>
+            </ul>
+          </div>
         </label>
 
         <label class="lb">Zeit ms
-          <select id="aiTime">
-            <option>250</option>
-            <option selected>350</option>
-            <option>600</option>
-            <option>800</option>
-          </select>
+          <div class="dd" id="ddTime" data-value="350">
+            <button class="dd-btn" type="button">350</button>
+            <ul class="dd-list">
+              <li data-val="250">250</li>
+              <li data-val="350">350</li>
+              <li data-val="600">600</li>
+              <li data-val="800">800</li>
+            </ul>
+          </div>
         </label>
       </div>
 
