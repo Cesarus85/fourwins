@@ -1,4 +1,4 @@
-// [C4-STEP-5] Game State + KI-Integration (Zugwechsel, Denken, Drop)
+// [C4-STEP-5b] Game State + KI-Integration (Minimax optional mit Zeitbudget)
 
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
 import { chooseAiMove } from './ai.js';
@@ -15,10 +15,18 @@ let busy = false;
 const activeDrops = [];
 const listeners = [];
 
+// === KI-Optionen =========================================
+// mode: 'heuristic' (schnell) | 'minimax' (stärker)
+const aiOptions = {
+  mode:   'minimax',
+  depth:  5,     // 4–6 auf Quest 3 sind i.d.R. flüssig
+  timeMs: 350    // Zeitbudget pro Zug (ms)
+};
 const aiEnabled = true;
-let aiTimer = 0;         // „Denk“-Verzögerung
-const aiDelayS = 0.35;   // kleine Pause für Natürlichkeit
+let aiTimer = 0;
+const aiDelayS = 0.35;   // kleine "Denkpause" als Feedback
 let aiPending = false;
+// =========================================================
 
 export function initGame(board) {
   boardObj = board;
@@ -50,13 +58,11 @@ export function highlightColumn(colIndex) {
   setHighlight(boardObj, colIndex);
 }
 
-// freie Zeile suchen
 export function nextFreeRow(col) {
   for (let r = 0; r < rows; r++) if (boardState[r][col] === 0) return r;
   return -1;
 }
 
-// Spielersetzung (nur wenn Spieler 1 dran)
 export function placeDiscHuman(col) {
   if (!boardObj || gameOver || busy || currentPlayer !== 1) {
     if (currentPlayer !== 1) emit({ type: 'invalid', reason: 'not_your_turn' });
@@ -65,7 +71,6 @@ export function placeDiscHuman(col) {
   return placeDisc(col, 1);
 }
 
-// Interne Routine für beide Spieler
 function placeDisc(col, player) {
   if (col < 0 || col >= cols) return false;
   const row = nextFreeRow(col);
@@ -104,16 +109,16 @@ export function update(dt) {
     }
   }
 
-  // KI-Zug triggern, sobald dran & nicht beschäftigt
+  // KI-Zug einplanen
   if (!gameOver && !busy && aiEnabled && currentPlayer === 2) {
     if (!aiPending) {
       aiPending = true;
       aiTimer = aiDelayS;
-      emit({ type: 'ai_turn' }); // HUD: „KI denkt…“
+      emit({ type: 'ai_turn' });
     } else {
       aiTimer -= dt;
       if (aiTimer <= 0) {
-        const col = chooseAiMove(boardState);
+        const col = chooseAiMove(boardState, aiOptions);
         const chosen = (col >= 0) ? col : firstValidCol();
         placeDisc(chosen, 2);
         aiPending = false;
@@ -127,7 +132,6 @@ function firstValidCol() {
   return -1;
 }
 
-// Nach einem gesetzten Stein: Sieg/Remis/Turn
 function postMoveResolve(row, col, player) {
   if (checkWinAt(row, col, player)) {
     gameOver = true; busy = false;
@@ -145,7 +149,6 @@ function postMoveResolve(row, col, player) {
   emit({ type: 'turn', player: currentPlayer });
 }
 
-// Gewinnprüfung (lokal auf boardState)
 function checkWinAt(row, col, player) {
   if (countLine(row, col, 0, 1, player) >= 4) return true;
   if (countLine(row, col, 1, 0, player) >= 4) return true;
@@ -153,7 +156,6 @@ function checkWinAt(row, col, player) {
   if (countLine(row, col, 1, -1, player) >= 4) return true;
   return false;
 }
-
 function countLine(row, col, dr, dc, player) {
   let total = 1;
   let r = row + dr, c = col + dc;
@@ -162,5 +164,4 @@ function countLine(row, col, dr, dc, player) {
   while (inBounds(r, c) && boardState[r][c] === player) { total++; r -= dr; c -= dc; }
   return total;
 }
-
 function inBounds(r, c) { return r >= 0 && r < rows && c >= 0 && c < cols; }
