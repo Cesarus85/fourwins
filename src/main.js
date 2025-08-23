@@ -41,23 +41,26 @@ function init() {
 
   // Erstes Select platziert das Brett an der Reticle-Pose
   onFirstSelect(renderer, () => {
-    if (boardPlaced) return;
-    const ret = getReticle();
-    if (!ret || !ret.visible) return;
+  if (boardPlaced) return;
+  const ret = getReticle();
+  if (!ret || !ret.visible) return;
 
-    boardRoot = createBoardPlaceholder();
-    boardRoot.position.copy(ret.position);
-    boardRoot.quaternion.copy(ret.quaternion);
-    boardRoot.position.y += 0.005; // minimal anheben, damit nichts clippt
-    scene.add(boardRoot);
+  boardRoot = createBoardPlaceholder();
+  boardRoot.position.copy(ret.position);
 
-    // Reticle ausblenden nach Platzierung
-    ret.visible = false;
+  // Brett-Ausrichtung erzwingen: Y-Achse hoch
+  boardRoot.quaternion.set(0, 0, 0, 1);
 
-    boardPlaced = true;
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'Brett platziert. Weiter mit Schritt 2: Raster & Eingaben.';
-  });
+  boardRoot.position.y += 0.005; // leicht angehoben
+  scene.add(boardRoot);
+
+  ret.visible = false;
+
+  boardPlaced = true;
+  const hint = document.getElementById('hint');
+  if (hint) hint.textContent = 'Brett platziert. Weiter mit Schritt 2: Raster & Eingaben.';
+});
+
 
   window.addEventListener('resize', onWindowResize);
 }
