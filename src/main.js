@@ -1,4 +1,4 @@
-// [C4-STEP-7] AR + Persistenz (Save/Load/Clear) + UI-Buttons
+// [C4-STEP-7 FIX] Reticle/Placement: Auto-Laden toggelbar + "Neu platzieren" Modus
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { ARButton } from 'https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js';
@@ -15,7 +15,7 @@ import { setupInput, updateInput } from './input.js';
 import { setSfxEnabled, sfxPlace, sfxLanded, sfxInvalid, sfxWin, sfxDraw, sfxTurnAI, ensureAudio } from './sfx.js';
 import { setHapticsEnabled, buzzSelect, buzzLanded, buzzWin, buzzInvalid } from './haptics.js';
 
-import { initDropdown, setDropdownValue, getDropdownValue } from './ui.js';
+import { initDropdown, setDropdownValue } from './ui.js';
 import { bindUiLock } from './overlay.js';
 import * as storage from './storage.js';
 
@@ -25,8 +25,13 @@ let boardRoot = null;
 
 let lastTs = 0;
 let SFX = true, HAP = true, SHADOWS = false;
+let AUTOLOAD = false;                 // <-- neu: standardmäßig AUS
+let placementMode = null;             // 'reposition' | null
 
-// --- Persist-Helfer ----------------------------------------------------------
+init();
+animate();
+
+// ---------- Persist Helpers ----------
 function collectPersistData() {
   const ai = getAiOptions();
   const pose = boardRoot ? {
@@ -35,52 +40,67 @@ function collectPersistData() {
   } : null;
 
   return {
-    options: { sfx: SFX, haptics: HAP, shadows: SHADOWS, aiMode: ai.mode, aiDepth: ai.depth, aiTime: ai.timeMs },
+    options: {
+      sfx: SFX, haptics: HAP, shadows: SHADOWS,
+      aiMode: ai.mode, aiDepth: ai.depth, aiTime: ai.timeMs,
+      autoload: AUTOLOAD
+    },
     board: pose,
     game: exportSnapshot()
   };
 }
 function saveNow() { storage.save(collectPersistData()); }
 
+function applyStoredOptions(opts = {}) {
+  SFX = !!opts.sfx;
+  HAP = !!opts.haptics;
+  SHADOWS = !!opts.shadows;
+  AUTOLOAD = !!opts.autoload;
+
+  setSfxEnabled(SFX);
+  setHapticsEnabled(HAP);
+  if (renderer) renderer.shadowMap.enabled = SHADOWS;
+
+  // KI-Optionen (falls vorhanden)
+  const nextAi = {};
+  if (opts.aiMode) nextAi.mode = opts.aiMode;
+  if (opts.aiDepth != null) nextAi.depth = parseInt(opts.aiDepth, 10);
+  if (opts.aiTime  != null) nextAi.timeMs = parseInt(opts.aiTime, 10);
+  if (Object.keys(nextAi).length) setAiOptions(nextAi);
+}
+
 function tryAutoLoad() {
   const st = storage.load();
   if (!st) return false;
-  // UI-Optionen anwenden
-  SFX = !!st.options?.sfx;
-  HAP = !!st.options?.haptics;
-  SHADOWS = !!st.options?.shadows;
-  setSfxEnabled(SFX); setHapticsEnabled(HAP);
-  if (renderer) renderer.shadowMap.enabled = SHADOWS;
+  applyStoredOptions(st.options);
 
-  // Brett erzeugen (falls nicht vorhanden) und Pose anwenden
+  // Nur laden, wenn Auto-Laden aktiv
+  if (!AUTOLOAD) return false;
+
   if (!boardPlaced) {
     boardRoot = createBoard();
     scene.add(boardRoot);
     initGame(boardRoot);
     boardPlaced = true;
-    // Pose
+
+    // Pose + Game
     if (st.board?.position && st.board?.quaternion) {
       boardRoot.position.fromArray(st.board.position);
       boardRoot.quaternion.fromArray(st.board.quaternion);
     }
-    // Spielzustand
     if (st.game) importSnapshot(st.game);
 
-    // Reticle ausblenden, HUD updaten
     const hint = document.getElementById('hint');
     if (hint) hint.textContent = 'Gespeichertes Spiel geladen. Du kannst weiterspielen.';
     const ret = getReticle(); if (ret) ret.visible = false;
     return true;
   } else {
-    // Wenn bereits platziert (sollte nicht passieren), nur Game importieren
     if (st.game) importSnapshot(st.game);
     return true;
   }
 }
 
-init();
-animate();
-
+// ---------- Init ----------
 function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -117,10 +137,15 @@ function init() {
   bindUiLock(hud);
   wireUiControls();
 
-  // Versuche nach Sessionstart automatisch zu laden (falls vorhanden)
+  // Optionen vorab aus Storage lesen (ohne zu laden)
+  const st = storage.load();
+  if (st?.options) applyStoredOptions(st.options);
+  // UI nachziehen (Checkboxen etc.)
+  reflectUiToggles();
+
+  // Auto-Load (nur wenn aktiv)
   renderer.xr.addEventListener('sessionstart', () => {
-    // kurzer Timeout: DOM overlay/sizing fertig
-    setTimeout(() => { if (!boardPlaced) tryAutoLoad(); }, 100);
+    setTimeout(() => { if (!boardPlaced) tryAutoLoad(); }, 120);
   });
 
   onGameEvent((ev) => {
@@ -133,33 +158,26 @@ function init() {
           ? 'Gelb ist dran (Du) – visiere eine Spalte & drücke Select.'
           : 'Rot (KI) ist dran.';
         if (ev.player === 2 && SFX) sfxTurnAI();
-        saveNow(); // nach abgeschlossenem Zug persistieren
+        saveNow();
         break;
       case 'ai_turn':
         if (hint) hint.textContent = 'Rot (KI) denkt …';
         break;
       case 'place':
-        if (SFX) sfxPlace(); if (HAP) buzzSelect(session);
-        break;
+        if (SFX) sfxPlace(); if (HAP) buzzSelect(session); break;
       case 'landed':
-        if (SFX) sfxLanded(); if (HAP) buzzLanded(session);
-        break;
+        if (SFX) sfxLanded(); if (HAP) buzzLanded(session); break;
       case 'win':
         if (hint) hint.textContent = ev.player === 1 ? 'Gelb gewinnt! 🎉' : 'Rot (KI) gewinnt! 🤖🏆';
-        if (SFX) sfxWin(); if (HAP) buzzWin(session);
-        saveNow();
-        break;
+        if (SFX) sfxWin(); if (HAP) buzzWin(session); saveNow(); break;
       case 'draw':
         if (hint) hint.textContent = 'Unentschieden – keine freien Felder.';
-        if (SFX) sfxDraw();
-        saveNow();
-        break;
+        if (SFX) sfxDraw(); saveNow(); break;
       case 'invalid':
         if (hint) hint.textContent = ev.reason === 'column_full'
           ? 'Spalte ist voll – wähle eine andere.'
           : 'Bitte warte – du bist nicht dran.';
-        if (SFX) sfxInvalid(); if (HAP) buzzInvalid(session);
-        break;
+        if (SFX) sfxInvalid(); if (HAP) buzzInvalid(session); break;
       case 'reset':
       case 'undo':
       case 'ai_options':
@@ -168,20 +186,33 @@ function init() {
     }
   });
 
+  // Platzierung & Reposition über denselben Select-Handler
   onFirstSelect(renderer, () => {
-    if (boardPlaced) return;
     const ret = getReticle();
     if (!ret || !ret.visible) return;
 
     ensureAudio();
 
+    if (placementMode === 'reposition' && boardRoot) {
+      // bestehendes Brett umsetzen
+      boardRoot.visible = true;
+      boardRoot.position.copy(ret.position);
+      alignYawToCamera(boardRoot);
+      const hint = document.getElementById('hint');
+      if (hint) hint.textContent = 'Brett neu platziert. Weiter geht’s!';
+      placementMode = null;
+      ret.visible = false;
+      boardPlaced = true;
+      saveNow(); // neue Pose sichern
+      return;
+    }
+
+    if (boardPlaced) return; // Falls bereits platziert (Sicherheitsgurt)
+
+    // NEU-PLATZIERUNG
     boardRoot = createBoard();
     boardRoot.position.copy(ret.position);
-    boardRoot.position.y += 0.005;
-
-    const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-    const yawOnly = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, euler.y, 0, 'YXZ'));
-    boardRoot.quaternion.copy(yawOnly);
+    alignYawToCamera(boardRoot);
 
     renderer.shadowMap.enabled = SHADOWS;
 
@@ -194,16 +225,24 @@ function init() {
     const hint = document.getElementById('hint');
     if (hint) hint.textContent = 'Brett platziert. Gelb beginnt – visiere eine Spalte & drücke Select.';
 
-    saveNow(); // Pose + leerer State sichern
+    saveNow(); // Pose + leerer State
   });
 
   window.addEventListener('resize', onWindowResize);
+}
+
+function alignYawToCamera(obj) {
+  obj.position.y += 0.005;
+  const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+  const yawOnly = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, euler.y, 0, 'YXZ'));
+  obj.quaternion.copy(yawOnly);
 }
 
 function wireUiControls() {
   const elReset = document.getElementById('btnReset');
   const elUndo1 = document.getElementById('btnUndo1');
   const elUndo2 = document.getElementById('btnUndo2');
+  const elRepl  = document.getElementById('btnReposition');
 
   const elMode  = document.getElementById('ddMode');
   const elDepth = document.getElementById('ddDepth');
@@ -212,13 +251,12 @@ function wireUiControls() {
   const elSfx   = document.getElementById('chkSfx');
   const elHap   = document.getElementById('chkHap');
   const elShad  = document.getElementById('chkShadows');
+  const elAuto  = document.getElementById('chkAutoLoad');
 
-  // NEU: Persist Buttons
+  // Persist Buttons (falls noch nicht im HTML vorhanden wurden sie in Step 7 dynamisch ergänzt)
   let elSave = document.getElementById('btnSave');
   let elLoad = document.getElementById('btnLoad');
   let elClear = document.getElementById('btnClear');
-
-  // Falls Buttons noch nicht im HTML sind, dynamisch ergänzen:
   if (!elSave || !elLoad || !elClear) {
     const row = document.createElement('div');
     row.className = 'row wrap';
@@ -237,6 +275,16 @@ function wireUiControls() {
   elUndo1?.addEventListener('click', () => { undo(1); saveNow(); });
   elUndo2?.addEventListener('click', () => { undo(2); saveNow(); });
 
+  // Neu platzieren: Reticle zurückholen ohne Spielstand zu verlieren
+  elRepl?.addEventListener('click', () => {
+    const hint = document.getElementById('hint');
+    if (!boardRoot) return;
+    placementMode = 'reposition';
+    boardPlaced = false;            // -> Hit-Test läuft wieder
+    boardRoot.visible = false;      // bis neu positioniert
+    if (hint) hint.textContent = 'Ziele auf die Fläche → Select setzt das Brett neu.';
+  });
+
   // Dropdown-Init + Änderungen weiterreichen
   initDropdown(elMode,  { onChange: (val) => { setAiOptions({ mode: val }); saveNow(); } });
   initDropdown(elDepth, { onChange: (val) => { setAiOptions({ depth: parseInt(val, 10) }); saveNow(); } });
@@ -254,11 +302,15 @@ function wireUiControls() {
     if (renderer) renderer.shadowMap.enabled = SHADOWS;
     saveNow();
   });
+  elAuto?.addEventListener('change', () => {
+    AUTOLOAD = elAuto.checked;
+    saveNow();
+  });
 
   // Persist Buttons
   elSave?.addEventListener('click', () => saveNow());
   elLoad?.addEventListener('click', () => {
-    const ok = tryAutoLoad();
+    const ok = tryAutoLoad(); // respektiert AUTOLOAD; hier geht's trotzdem manuell
     const hint = document.getElementById('hint');
     if (hint) hint.textContent = ok ? 'Gespeichertes Spiel geladen.' : 'Kein Speicherstand gefunden.';
   });
@@ -267,6 +319,17 @@ function wireUiControls() {
     const hint = document.getElementById('hint');
     if (hint) hint.textContent = 'Speicherstand gelöscht.';
   });
+}
+
+function reflectUiToggles() {
+  const elSfx  = document.getElementById('chkSfx');
+  const elHap  = document.getElementById('chkHap');
+  const elShad = document.getElementById('chkShadows');
+  const elAuto = document.getElementById('chkAutoLoad');
+  if (elSfx)  elSfx.checked  = SFX;
+  if (elHap)  elHap.checked  = HAP;
+  if (elShad) elShad.checked = SHADOWS;
+  if (elAuto) elAuto.checked = AUTOLOAD;
 }
 
 function onWindowResize() {
@@ -282,9 +345,9 @@ function render(ts, frame) {
   render.lastTs = ts;
 
   if (!boardPlaced) {
-    updateHitTest(renderer, frame);
+    updateHitTest(renderer, frame);   // Reticle/Hit-Test aktiv
   } else {
-    updateInput(frame);
+    updateInput(frame);               // Spielinteraktion
     updateGame(dt);
   }
 

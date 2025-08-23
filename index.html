@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Vier gewinnt AR – Step 7 (Persistenz)</title>
+  <title>Vier gewinnt AR – Step 7 (Reticle/Placement Fix)</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -19,7 +19,9 @@
         <button id="btnReset" class="btn">Neu/Reset</button>
         <button id="btnUndo1" class="btn">Undo 1</button>
         <button id="btnUndo2" class="btn">Undo 2</button>
+        <button id="btnReposition" class="btn">Neu platzieren</button>
 
+        <!-- Custom Dropdowns (aus deinem aktuellen Stand) -->
         <label class="lb">KI:
           <div class="dd" id="ddMode" data-value="minimax">
             <button class="dd-btn" type="button">Minimax (stärker)</button>
@@ -59,9 +61,10 @@
         <label class="chk"><input type="checkbox" id="chkSfx" checked> SFX</label>
         <label class="chk"><input type="checkbox" id="chkHap" checked> Haptik</label>
         <label class="chk"><input type="checkbox" id="chkShadows"> Schatten</label>
+        <label class="chk"><input type="checkbox" id="chkAutoLoad"> Auto-Laden</label>
       </div>
 
-      <!-- NEU: Persistenz -->
+      <!-- Persistenz -->
       <div class="row wrap">
         <button id="btnSave" class="btn">Speichern</button>
         <button id="btnLoad" class="btn">Laden</button>
