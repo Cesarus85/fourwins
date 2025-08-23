@@ -1,17 +1,27 @@
-// [C4-STEP-2] Spielzustand + Highlight API (noch keine Steine)
+// [C4-STEP-2] Spielzustand für 7x6 Raster + Highlight Steuerung
 
 import { setHighlight } from './board.js';
 
-let boardState = null;   // [row][col] 0 = leer, 1 = Spieler, 2 = KI
-let boardObj = null;
+let boardState = null; // 2D-Array [row][col]
+let boardObject = null;
 
 export function initGame(board) {
-  boardObj = board;
-  const rows = board.userData.rows;
-  const cols = board.userData.cols;
-  boardState = Array.from({ length: rows }, () => Array(cols).fill(0));
+  boardObject = board;
+  boardState = Array.from({ length: board.userData.rows }, () =>
+    Array(board.userData.cols).fill(0)
+  );
 }
 
-export function getBoardState()      { return boardState; }
-export function getBoardObject()     { return boardObj; }
-export function highlightColumn(c)   { if (boardObj) setHighlight(boardObj, c); }
+export function getBoardState() {
+  return boardState;
+}
+
+export function getBoardObject() {
+  return boardObject;
+}
+
+// Highlight Spalte setzen
+export function highlightColumn(colIndex) {
+  if (!boardObject) return;
+  setHighlight(boardObject, colIndex);
+}

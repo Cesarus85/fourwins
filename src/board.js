@@ -1,90 +1,87 @@
-// [C4-STEP-2] Brett mit 7x6 "Löchern", Spalten-Collider und Highlight
+// [C4-STEP-2] Vier Gewinnt Brett mit 7x6 Raster und Spalten-Collider
 
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 
-export const COLS = 7;
-export const ROWS = 6;
+const COLS = 7;
+const ROWS = 6;
 
 export function createBoard() {
-  const g = new THREE.Group();
+  const group = new THREE.Group();
 
-  // Basisplatte (70 x 35 cm)
-  const baseGeom = new THREE.BoxGeometry(0.70, 0.02, 0.35);
-  const baseMat  = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.1, roughness: 0.85 });
+  // Basisplatte
+  const baseGeom = new THREE.BoxGeometry(0.7, 0.02, 0.35);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
   const base = new THREE.Mesh(baseGeom, baseMat);
   base.position.y = 0.01;
-  g.add(base);
+  group.add(base);
 
-  // Rückwand (Brett)
-  const wallGeom = new THREE.BoxGeometry(0.70, 0.45, 0.02);
-  const wallMat  = new THREE.MeshStandardMaterial({ color: 0x374151, metalness: 0.05, roughness: 0.9 });
+  // Rückwand (Brett mit Löchern)
+  const wallGeom = new THREE.BoxGeometry(0.7, 0.45, 0.02);
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x374151 });
   const wall = new THREE.Mesh(wallGeom, wallMat);
-  wall.position.set(0, 0.245, -0.15);
-  g.add(wall);
+  wall.position.set(0, 0.24, -0.15);
+  group.add(wall);
 
-  // Sichtbare "Löcher" als Kreise dicht vor der Wand (keine CSG, nur Look)
-  const holeR = 0.04;
-  const xStep = 0.70 / (COLS + 0.5); // etwas Rand links/rechts
-  const yStep = 0.45 / (ROWS + 1);   // etwas Rand oben/unten
-  const holeMat = new THREE.MeshBasicMaterial({
-    color: 0x0b1020,
-    side: THREE.DoubleSide,
-    depthTest: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1
-  });
+  // Raster-Löcher (nur optisch)
+  const holeRadius = 0.04;
+  const xSpacing = 0.1;  // ~70cm / 7 Spalten
+  const ySpacing = 0.07; // ~42cm / 6 Reihen
 
   for (let c = 0; c < COLS; c++) {
     for (let r = 0; r < ROWS; r++) {
-      const cx = (c - (COLS - 1) / 2) * xStep;
-      const cy = 0.07 + r * yStep;
-      const hole = new THREE.Mesh(new THREE.CircleGeometry(holeR, 32), holeMat);
-      hole.position.set(cx, cy, -0.139);     // knapp vor der Wand (vermeidet Z-Fighting)
-      hole.rotation.y = Math.PI;             // nach vorne
-      g.add(hole);
+      const hole = new THREE.Mesh(
+        new THREE.CircleGeometry(holeRadius, 32),
+        new THREE.MeshBasicMaterial({ color: 0x111111 })
+      );
+      hole.position.set(
+        (c - (COLS - 1) / 2) * xSpacing,
+        0.07 + r * ySpacing,
+        -0.14 // leicht vor der Wand
+      );
+      hole.rotation.y = Math.PI; // nach vorne zeigen
+      group.add(hole);
     }
   }
 
-  // Spalten-Collider (unsichtbar)
+  // Collider für jede Spalte (unsichtbare Boxen)
   const colliders = [];
   for (let c = 0; c < COLS; c++) {
-    const col = new THREE.Mesh(
-      new THREE.BoxGeometry(xStep, 0.46, 0.36),
-      new THREE.MeshBasicMaterial({ visible: false })
-    );
-    col.position.set((c - (COLS - 1) / 2) * xStep, 0.245, -0.02);
-    col.userData = { colIndex: c, type: 'c4_col' };
-    g.add(col);
+    const colGeom = new THREE.BoxGeometry(0.1, 0.45, 0.35);
+    const colMat = new THREE.MeshBasicMaterial({ visible: false });
+    const col = new THREE.Mesh(colGeom, colMat);
+    col.position.set((c - (COLS - 1) / 2) * xSpacing, 0.24, 0);
+    col.userData = { colIndex: c };
+    group.add(col);
     colliders.push(col);
   }
 
-  // Deutlich sichtbares Highlight (grüne Schiene) über dem Brett
-  const hlGeom = new THREE.BoxGeometry(xStep * 1.1, 0.02, 0.38);
-  const hlMat  = new THREE.MeshBasicMaterial({ color: 0x22ff88 });
-  const highlight = new THREE.Mesh(hlGeom, hlMat);
-  highlight.position.set(0, 0.50, -0.02);
+  // Highlight-Marker (grüne Linie)
+  const highlightGeom = new THREE.BoxGeometry(0.12, 0.02, 0.37);
+  const highlightMat = new THREE.MeshBasicMaterial({ color: 0x22ff88 });
+  const highlight = new THREE.Mesh(highlightGeom, highlightMat);
+  highlight.position.set(0, 0.46, 0);
   highlight.visible = false;
-  g.add(highlight);
+  group.add(highlight);
 
-  // dünner Rand der Basis (optisch)
-  const edges = new THREE.EdgesGeometry(baseGeom);
-  const edgeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x6b7280 }));
-  edgeLine.position.copy(base.position);
-  g.add(edgeLine);
+  group.userData = {
+    colliders,
+    highlight,
+    cols: COLS,
+    rows: ROWS
+  };
 
-  g.userData = { colliders, highlight, cols: COLS, rows: ROWS, xStep, yStep };
-  g.name = 'C4_Board';
-  return g;
+  group.name = 'C4_Board';
+  return group;
 }
 
 export function setHighlight(board, colIndex) {
   if (!board) return;
-  const { highlight, cols, xStep } = board.userData;
-  if (colIndex == null || colIndex < 0 || colIndex >= cols) {
+  const { highlight } = board.userData;
+  if (colIndex === null || colIndex < 0) {
     highlight.visible = false;
     return;
   }
   highlight.visible = true;
-  highlight.position.x = (colIndex - (cols - 1) / 2) * xStep;
+  const xSpacing = 0.1;
+  highlight.position.x = (colIndex - (board.userData.cols - 1) / 2) * xSpacing;
 }
