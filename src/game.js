@@ -27,7 +27,6 @@ let aiPending = false;
 // Win-Highlight
 let winCells = null;         // Array<{r,c}>
 let highlighted = [];        // referenzen auf Meshes mit revert-Info
-let lastMove = null;         // zuletzt gesetzter Stein (Mesh + Originaldaten)
 
 export function initGame(board) {
   boardObj = board;
@@ -44,7 +43,6 @@ export function initGame(board) {
   activeDrops.length = 0;
   history.length = 0;
   clearWinHighlight();
-  clearLastMoveHighlight();
   emit({ type: 'turn', player: currentPlayer });
 }
 
@@ -101,9 +99,6 @@ function placeDisc(col, player) {
 
   // Mesh im Raster merken (für Win-Highlight & Undo)
   boardMeshes[row][col] = disc;
-
-  // aktuellen Zug hervorheben
-  highlightLastMove(disc);
 
   // Historie
   history.push({ row, col, player, mesh: disc });
@@ -237,7 +232,7 @@ function highlightWinCells(cells) {
     const oldScale = m.scale.clone();
     m.scale.set(oldScale.x * 1.12, oldScale.y * 1.12, oldScale.z * 1.12);
 
-    highlighted.push({ mesh: m, matOld, matNew, scaleOld: oldScale });
+    highlighted.push({ mesh: m, matOld, scaleOld: oldScale });
   }
 }
 
@@ -249,38 +244,10 @@ function clearWinHighlight() {
         if (h.matOld) h.mesh.material = h.matOld;
         if (h.scaleOld) h.mesh.scale.copy(h.scaleOld);
       }
-      if (h.matNew && typeof h.matNew.dispose === 'function') {
-        h.matNew.dispose();
-      }
     } catch {}
   }
   highlighted.length = 0;
   winCells = null;
-}
-
-function highlightLastMove(mesh) {
-  clearLastMoveHighlight();
-  if (!mesh) return;
-  const matOld = mesh.material;
-  const matNew = matOld.clone();
-  matNew.emissive = matNew.emissive ? matNew.emissive : { setHex:()=>{} };
-  matNew.emissiveIntensity = 0.6;
-  matNew.emissive?.setHex?.(0xffffff);
-  mesh.material = matNew;
-
-  const scaleOld = mesh.scale.clone();
-  mesh.scale.set(scaleOld.x * 1.1, scaleOld.y * 1.1, scaleOld.z * 1.1);
-
-  lastMove = { mesh, matOld, scaleOld };
-}
-
-function clearLastMoveHighlight() {
-  if (!lastMove) return;
-  try {
-    if (lastMove.matOld) lastMove.mesh.material = lastMove.matOld;
-    if (lastMove.scaleOld) lastMove.mesh.scale.copy(lastMove.scaleOld);
-  } catch {}
-  lastMove = null;
 }
 
 // ===== Reset & Undo ===========================================================
@@ -290,7 +257,6 @@ export function resetGame() {
 
   // Win-Markierung zurücksetzen
   clearWinHighlight();
-  clearLastMoveHighlight();
 
   // alle Discs entfernen
   for (const mv of history) {
@@ -317,7 +283,6 @@ export function undo(count = 1) {
 
   // Win-Markierung entfernen (falls gerade vorhanden)
   clearWinHighlight();
-  clearLastMoveHighlight();
   gameOver = false;
 
   let undone = 0;
@@ -342,8 +307,6 @@ export function undo(count = 1) {
     aiPending = false; aiTimer = 0;
     emit({ type:'undo', count:undone });
     emit({ type:'turn', player: currentPlayer });
-    // neuen letzten Zug markieren, falls vorhanden
-    if (history.length > 0) highlightLastMove(history[history.length - 1].mesh);
     return true;
   }
   return false;
