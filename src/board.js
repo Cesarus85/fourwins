@@ -49,7 +49,7 @@ export function createBoard() {
 
   // Rahmen (empfängt Schatten)
   {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x2b3340, metalness: 0.05, roughness: 0.9 });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x0066ff, metalness: 0.05, roughness: 0.9 });
 
     const top = new THREE.Mesh(new THREE.BoxGeometry(BOARD_W + FRAME_THICK, FRAME_THICK, FRAME_DEPTH), mat);
     top.position.set(0, BASE_THICK + BOARD_H + FRAME_THICK * 0.5, BOARD_Z);
