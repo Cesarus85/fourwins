@@ -7,8 +7,7 @@ let pingTimer = null;
 function emit(msg) { for (const h of handlers) { try { h(msg); } catch {} } }
 
 export function connect(code) {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${SERVER_HOST}/ws?code=${code}`;
+  const url = `${SERVER_HOST.replace(/^http/, 'ws')}/ws?code=${code}`;
   ws = new WebSocket(url);
   ws.onopen = () => {
     startPing();
