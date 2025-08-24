@@ -1,6 +1,8 @@
 // Custom Dropdowns für Quest DOM Overlay
 // Usage: initDropdown(el, { onChange: (value,label)=>{} }); setDropdownValue(el, value)
 
+import * as net from './net.js';
+
 export function initDropdown(el, { onChange } = {}) {
   const btn  = el.querySelector('.dd-btn');
   const list = el.querySelector('.dd-list');
@@ -52,4 +54,28 @@ export function setDropdownValue(el, value) {
 
 export function getDropdownValue(el) {
   return el?.dataset?.value ?? null;
+}
+
+// --- Online-Raum UI ---------------------------------------------------------
+export function initNetControls() {
+  const btnCreate = document.getElementById('btnCreateRoom');
+  const btnJoin   = document.getElementById('btnJoinRoom');
+  const inpCode   = document.getElementById('roomCodeInput');
+  const lblCode   = document.getElementById('roomCode');
+
+  btnCreate?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/room', { method: 'POST' });
+      const data = await res.json();
+      if (lblCode) lblCode.textContent = data.code;
+      net.connect(data.code);
+    } catch (e) { console.error(e); }
+  });
+
+  btnJoin?.addEventListener('click', () => {
+    const code = inpCode?.value?.trim();
+    if (!code) return;
+    if (lblCode) lblCode.textContent = code;
+    net.connect(code);
+  });
 }

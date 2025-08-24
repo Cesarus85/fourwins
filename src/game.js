@@ -3,6 +3,7 @@
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
 import { chooseAiMove } from './ai.js';
+import { sendMove, sendReset, onMessage as netOnMessage } from './net.js';
 
 let boardObj = null;
 let boardState = null;     // [row][col] -> 0 leer, 1 Gelb, 2 Rot
@@ -23,6 +24,39 @@ let aiEnabled = true;
 let aiTimer = 0;
 const aiDelayS = 0.35;
 let aiPending = false;
+
+let online = false;
+let myPlayer = 1;
+let remotePlayer = 2;
+
+netOnMessage(handleNetMessage);
+
+function handleNetMessage(msg) {
+  switch (msg.type) {
+    case 'join':
+      online = true;
+      myPlayer = msg.player;
+      remotePlayer = myPlayer === 1 ? 2 : 1;
+      aiEnabled = false;
+      emit({ type: 'turn', player: currentPlayer });
+      break;
+    case 'start':
+      resetGame(true);
+      break;
+    case 'move':
+      placeDisc(msg.col, remotePlayer);
+      break;
+    case 'reset':
+      resetGame(true);
+      break;
+    case 'disconnect':
+      online = false;
+      aiEnabled = true;
+      resetGame(true);
+      emit({ type: 'net_disconnect' });
+      break;
+  }
+}
 
 // Gewinn-Highlight
 let winCells = null;
@@ -82,7 +116,13 @@ export function placeDiscHuman(col) {
     emit({ type: 'invalid', reason: 'not_your_turn' });
     return false;
   }
-  return placeDisc(col, currentPlayer);
+  if (online && currentPlayer !== myPlayer) {
+    emit({ type: 'invalid', reason: 'not_your_turn' });
+    return false;
+  }
+  const ok = placeDisc(col, currentPlayer);
+  if (ok && online) sendMove(col);
+  return ok;
 }
 
 function placeDisc(col, player) {
@@ -246,7 +286,7 @@ function clearWinHighlight() {
 }
 
 // ===== Reset & Undo ===========================================================
-export function resetGame() {
+export function resetGame(fromNet = false) {
   activeDrops.length = 0; busy = false; aiPending = false; aiTimer = 0; gameOver = false;
   clearWinHighlight();
 
@@ -265,6 +305,7 @@ export function resetGame() {
   movesCount = 0; currentPlayer = 1;
   emit({ type:'reset' });
   emit({ type:'turn', player: currentPlayer });
+  if (online && !fromNet) sendReset();
 }
 
 export function undo(count = 1) {

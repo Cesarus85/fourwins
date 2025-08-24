@@ -16,7 +16,8 @@ import { setSfxEnabled, sfxPlace, sfxLanded, sfxInvalid, sfxWin, sfxDraw, sfxTur
 import { setHapticsEnabled, buzzSelect, buzzLanded, buzzWin, buzzInvalid } from './haptics.js';
 
 import * as storage from './storage.js';
-import { initDropdown, setDropdownValue } from './ui.js';
+import { initDropdown, setDropdownValue, initNetControls } from './ui.js';
+import { onMessage as onNetMessage } from './net.js';
 
 let renderer, scene, camera;
 let boardPlaced = false;
@@ -216,6 +217,12 @@ function wireUiControls() {
     } finally {
       elFile.value = '';
     }
+  });
+
+  initNetControls();
+
+  onNetMessage(msg => {
+    if (msg.type === 'disconnect') notify('Verbindung getrennt.');
   });
 }
 
