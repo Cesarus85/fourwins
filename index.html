@@ -3,97 +3,118 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Vier gewinnt AR – Step 6 + Save/Load Fix</title>
+  <title>Vier gewinnt AR</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div id="hud" class="panel">
-    <div class="row">
-      <h1 class="title">Vier gewinnt AR</h1>
-      <span class="build">[C4-STEP-6+SAVE]</span>
-    </div>
-    <p id="hint">Ziele auf eine Fläche → Trigger/Pinch platziert das Brett.</p>
-
-    <div class="controls">
-      <div class="row wrap">
-        <button id="btnReset" class="btn">Neu/Reset</button>
-        <button id="btnUndo1" class="btn">Undo 1</button>
-        <button id="btnUndo2" class="btn">Undo 2</button>
-
-        <label class="lb">Gegner:
-          <div id="opponent" class="dd" data-value="ai">
-            <button class="dd-btn btn"></button>
-            <ul class="dd-list">
-              <li data-val="ai">KI</li>
-              <li data-val="human">Mensch</li>
-            </ul>
-          </div>
-        </label>
-
-        <label class="lb">KI:
-          <div id="aiMode" class="dd" data-value="minimax">
-            <button class="dd-btn btn"></button>
-            <ul class="dd-list">
-              <li data-val="heuristic">Heuristik (schnell)</li>
-              <li data-val="minimax">Minimax (stärker)</li>
-            </ul>
-          </div>
-        </label>
-
-        <label class="lb">Tiefe
-          <div id="aiDepth" class="dd" data-value="5">
-            <button class="dd-btn btn"></button>
-            <ul class="dd-list">
-              <li data-val="4">4</li>
-              <li data-val="5">5</li>
-              <li data-val="6">6</li>
-              <li data-val="7">7</li>
-            </ul>
-          </div>
-        </label>
-
-        <label class="lb">Zeit ms
-          <div id="aiTime" class="dd" data-value="350">
-            <button class="dd-btn btn"></button>
-            <ul class="dd-list">
-              <li data-val="250">250</li>
-              <li data-val="350">350</li>
-              <li data-val="600">600</li>
-              <li data-val="800">800</li>
-            </ul>
-          </div>
-        </label>
+    <header class="site-header">
+      <div class="row between">
+        <h1 class="title">Vier gewinnt AR</h1>
+        <span class="build">[C4-STEP-6+SAVE]</span>
       </div>
+      <p class="tagline">Spiele das klassische Vier gewinnt in Augmented Reality.</p>
+    </header>
 
-      <div class="row wrap">
-        <label class="chk"><input type="checkbox" id="chkSfx" checked> SFX</label>
-        <label class="chk"><input type="checkbox" id="chkHap" checked> Haptik</label>
-        <label class="chk"><input type="checkbox" id="chkShadows"> Schatten</label>
-      </div>
+    <main class="controls">
+      <p id="hint">Ziele auf eine Fläche → Trigger/Pinch platziert das Brett.</p>
 
-      <!-- Online-Spiel -->
-      <div class="row wrap">
-        <button id="btnCreateRoom" class="btn">Raum erstellen</button>
-        <input id="roomCodeInput" class="txt" maxlength="6" size="6" placeholder="Code" />
-        <button id="btnJoinRoom" class="btn">Beitreten</button>
-        <span id="roomCode" class="lb" style="margin-left:.6rem"></span>
-      </div>
+      <section class="game-actions">
+        <h2>Spiel</h2>
+        <div class="row wrap">
+          <button id="btnReset" class="btn">Neu/Reset</button>
+          <button id="btnUndo1" class="btn">Undo 1</button>
+          <button id="btnUndo2" class="btn">Undo 2</button>
+        </div>
+      </section>
 
-      <!-- Speichern/Laden -->
-      <div class="row wrap">
-        <button id="btnSave" class="btn">Speichern</button>
-        <button id="btnLoad" class="btn">Laden</button>
-        <button id="btnClear" class="btn">Löschen</button>
-        <span id="storeStatus" style="margin-left:.6rem;opacity:.85">Speicher: prüfen …</span>
-      </div>
+      <section class="ai-settings">
+        <h2>Computergegner</h2>
+        <div class="row wrap">
+          <label class="lb">Gegner:
+            <div id="opponent" class="dd" data-value="ai">
+              <button class="dd-btn btn"></button>
+              <ul class="dd-list">
+                <li data-val="ai">KI</li>
+                <li data-val="human">Mensch</li>
+              </ul>
+            </div>
+          </label>
 
-      <!-- Datei-Export/Import (Fallback) -->
-      <div class="row wrap">
-        <button id="btnExport" class="btn">Export (JSON)</button>
-        <button id="btnImport" class="btn">Import (JSON)</button>
-        <input id="fileImport" type="file" accept="application/json" style="display:none" />
-      </div>
-    </div>
+          <label class="lb">KI:
+            <div id="aiMode" class="dd" data-value="minimax">
+              <button class="dd-btn btn"></button>
+              <ul class="dd-list">
+                <li data-val="heuristic">Heuristik (schnell)</li>
+                <li data-val="minimax">Minimax (stärker)</li>
+              </ul>
+            </div>
+          </label>
+
+          <label class="lb">Tiefe
+            <div id="aiDepth" class="dd" data-value="5">
+              <button class="dd-btn btn"></button>
+              <ul class="dd-list">
+                <li data-val="4">4</li>
+                <li data-val="5">5</li>
+                <li data-val="6">6</li>
+                <li data-val="7">7</li>
+              </ul>
+            </div>
+          </label>
+
+          <label class="lb">Zeit ms
+            <div id="aiTime" class="dd" data-value="350">
+              <button class="dd-btn btn"></button>
+              <ul class="dd-list">
+                <li data-val="250">250</li>
+                <li data-val="350">350</li>
+                <li data-val="600">600</li>
+                <li data-val="800">800</li>
+              </ul>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section class="preferences">
+        <h2>Optionen</h2>
+        <div class="row wrap">
+          <label class="chk"><input type="checkbox" id="chkSfx" checked> SFX</label>
+          <label class="chk"><input type="checkbox" id="chkHap" checked> Haptik</label>
+          <label class="chk"><input type="checkbox" id="chkShadows"> Schatten</label>
+        </div>
+      </section>
+
+      <section class="online">
+        <h2>Online-Spiel</h2>
+        <div class="row wrap">
+          <button id="btnCreateRoom" class="btn">Raum erstellen</button>
+          <input id="roomCodeInput" class="txt" maxlength="6" size="6" placeholder="Code" />
+          <button id="btnJoinRoom" class="btn">Beitreten</button>
+          <span id="roomCode" class="lb" style="margin-left:.6rem"></span>
+        </div>
+      </section>
+
+      <section class="storage">
+        <h2>Spielstand</h2>
+        <div class="row wrap">
+          <button id="btnSave" class="btn">Speichern</button>
+          <button id="btnLoad" class="btn">Laden</button>
+          <button id="btnClear" class="btn">Löschen</button>
+          <span id="storeStatus" style="margin-left:.6rem;opacity:.85">Speicher: prüfen …</span>
+        </div>
+      </section>
+
+      <section class="file-transfer">
+        <h2>Import/Export</h2>
+        <div class="row wrap">
+          <button id="btnExport" class="btn">Export (JSON)</button>
+          <button id="btnImport" class="btn">Import (JSON)</button>
+          <input id="fileImport" type="file" accept="application/json" style="display:none" />
+        </div>
+      </section>
+    </main>
   </div>
 
   <script type="module">

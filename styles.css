@@ -35,9 +35,17 @@ html,body{
 .controls{display:flex; flex-direction:column; gap: var(--gap)}
 .row{display:flex; align-items:center; gap:.6rem}
 .wrap{flex-wrap:wrap}
+.row.between{justify-content:space-between}
 
 .lb{font-size:1em; opacity:.95; display:flex; align-items:center; gap:.4rem}
 .chk{font-size:1em; opacity:.95; display:flex; align-items:center; gap:.35rem}
+
+.site-header{display:flex; flex-direction:column; gap:.35rem;}
+.tagline{margin:0; font-size:.9em; color:var(--muted);}
+
+.controls section{border-top:1px solid #334155; padding-top:.6rem; display:flex; flex-direction:column; gap:.5rem}
+.controls section:first-of-type{border-top:none; padding-top:0}
+.controls h2{margin:0; font-size:1em; color:var(--accent)}
 
 .btn{
   background:var(--btn); color:#e5e7eb; border:1px solid var(--btnb);
