@@ -66,8 +66,7 @@ export function initNetControls() {
 
   btnCreate?.addEventListener('click', async () => {
     try {
-      const scheme = location.protocol === 'https:' ? 'https://' : 'http://';
-      const res = await fetch(`${scheme}${SERVER_HOST}/room`, { method: 'POST' });
+      const res = await fetch(`${SERVER_HOST}/room`, { method: 'POST' });
       const data = await res.json();
       if (lblCode) lblCode.textContent = data.code;
       net.connect(data.code);
