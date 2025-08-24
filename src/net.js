@@ -1,3 +1,5 @@
+import { SERVER_HOST } from './config.js';
+
 let ws = null;
 const handlers = [];
 let pingTimer = null;
@@ -6,7 +8,7 @@ function emit(msg) { for (const h of handlers) { try { h(msg); } catch {} } }
 
 export function connect(code) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.host}/ws?code=${code}`;
+  const url = `${proto}://${SERVER_HOST}/ws?code=${code}`;
   ws = new WebSocket(url);
   ws.onopen = () => {
     startPing();

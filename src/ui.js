@@ -2,6 +2,7 @@
 // Usage: initDropdown(el, { onChange: (value,label)=>{} }); setDropdownValue(el, value)
 
 import * as net from './net.js';
+import { SERVER_HOST } from './config.js';
 
 export function initDropdown(el, { onChange } = {}) {
   const btn  = el.querySelector('.dd-btn');
@@ -65,7 +66,8 @@ export function initNetControls() {
 
   btnCreate?.addEventListener('click', async () => {
     try {
-      const res = await fetch('/room', { method: 'POST' });
+      const scheme = location.protocol === 'https:' ? 'https://' : 'http://';
+      const res = await fetch(`${scheme}${SERVER_HOST}/room`, { method: 'POST' });
       const data = await res.json();
       if (lblCode) lblCode.textContent = data.code;
       net.connect(data.code);
