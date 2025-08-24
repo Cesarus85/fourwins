@@ -66,13 +66,14 @@ function init() {
   onGameEvent((ev) => {
     const hint = document.getElementById('hint');
     const session = renderer.xr.getSession?.();
+    const aiOn = getAiOptions().enabled;
 
     switch (ev.type) {
       case 'turn':
         if (hint) hint.textContent = ev.player === 1
-          ? 'Gelb ist dran (Du) – visiere eine Spalte & drücke Select.'
-          : 'Rot (KI) ist dran.';
-        if (ev.player === 2) { if (SFX) sfxTurnAI(); }
+          ? `Gelb ist dran${aiOn ? ' (Du)' : ''} – visiere eine Spalte & drücke Select.`
+          : aiOn ? 'Rot (KI) ist dran.' : 'Rot ist dran – visiere eine Spalte & drücke Select.';
+        if (ev.player === 2 && aiOn) { if (SFX) sfxTurnAI(); }
         break;
       case 'ai_turn':
         if (hint) hint.textContent = 'Rot (KI) denkt …';
@@ -82,7 +83,9 @@ function init() {
       case 'landed':
         if (SFX) sfxLanded(); if (HAP) buzzLanded(session); break;
       case 'win':
-        if (hint) hint.textContent = ev.player === 1 ? 'Gelb gewinnt! 🎉' : 'Rot (KI) gewinnt! 🤖🏆';
+        if (hint) hint.textContent = ev.player === 1
+          ? 'Gelb gewinnt! 🎉'
+          : aiOn ? 'Rot (KI) gewinnt! 🤖🏆' : 'Rot gewinnt! 🏆';
         if (SFX) sfxWin(); if (HAP) buzzWin(session); break;
       case 'draw':
         if (hint) hint.textContent = 'Unentschieden – keine freien Felder.';
@@ -132,6 +135,7 @@ function wireUiControls() {
   const elUndo1 = document.getElementById('btnUndo1');
   const elUndo2 = document.getElementById('btnUndo2');
 
+  const elOpp   = document.getElementById('opponent');
   const elMode  = document.getElementById('aiMode');
   const elDepth = document.getElementById('aiDepth');
   const elTime  = document.getElementById('aiTime');
@@ -152,6 +156,7 @@ function wireUiControls() {
   elUndo1?.addEventListener('click', () => undo(1));
   elUndo2?.addEventListener('click', () => undo(2));
 
+  elOpp?.addEventListener('change', () => setAiOptions({ enabled: elOpp.value === 'ai' }));
   elMode?.addEventListener('change', () => setAiOptions({ mode: elMode.value }));
   elDepth?.addEventListener('change', () => setAiOptions({ depth: parseInt(elDepth.value, 10) }));
   elTime?.addEventListener('change', () => setAiOptions({ timeMs: parseInt(elTime.value, 10) }));
@@ -226,7 +231,15 @@ function collectPersistData() {
     quaternion: boardRoot.quaternion.toArray()
   } : null;
   return {
-    options: { sfx: SFX, haptics: HAP, shadows: SHADOWS, aiMode: ai.mode, aiDepth: ai.depth, aiTime: ai.timeMs },
+    options: {
+      sfx: SFX,
+      haptics: HAP,
+      shadows: SHADOWS,
+      aiEnabled: ai.enabled,
+      aiMode: ai.mode,
+      aiDepth: ai.depth,
+      aiTime: ai.timeMs
+    },
     board: pose,
     game: exportSnapshot()
   };
@@ -249,7 +262,12 @@ function applyLoadedObject(st) {
   if (st.options?.aiMode) nextAi.mode = st.options.aiMode;
   if (st.options?.aiDepth != null) nextAi.depth = parseInt(st.options.aiDepth, 10);
   if (st.options?.aiTime  != null) nextAi.timeMs = parseInt(st.options.aiTime, 10);
-  if (Object.keys(nextAi).length) setAiOptions(nextAi);
+  if (st.options?.aiEnabled != null) nextAi.enabled = !!st.options.aiEnabled;
+  if (Object.keys(nextAi).length) {
+    setAiOptions(nextAi);
+    const elOpp = document.getElementById('opponent');
+    if (elOpp && nextAi.enabled != null) elOpp.value = nextAi.enabled ? 'ai' : 'human';
+  }
 
   // Brett sicherstellen
   if (!boardPlaced) {

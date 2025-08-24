@@ -1,6 +1,6 @@
 // [C4-SAVE-FIX] Persistenz-Helper: LocalStorage mit Verfügbarkeits-Check + JSON-Export
 
-const KEY = 'c4ar:state:v1';
+const KEY = 'c4ar:state:v2';
 let _lastError = null;
 
 export function isAvailable() {
@@ -19,7 +19,7 @@ export function lastError() { return _lastError; }
 
 export function save(data) {
   try {
-    const payload = { version: 1, time: Date.now(), ...data };
+    const payload = { version: 2, time: Date.now(), ...data };
     localStorage.setItem(KEY, JSON.stringify(payload));
     return true;
   } catch (e) {
@@ -33,7 +33,7 @@ export function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const obj = JSON.parse(raw);
-    if (!obj || obj.version !== 1) return null;
+    if (!obj || obj.version !== 2) return null;
     return obj;
   } catch (e) {
     _lastError = String(e?.message || e);
@@ -48,7 +48,7 @@ export function clear() {
 
 // ------- Datei-Export/Import -------
 export function toBlob(data) {
-  const payload = { version: 1, time: Date.now(), ...data };
+  const payload = { version: 2, time: Date.now(), ...data };
   const str = JSON.stringify(payload, null, 2);
   return new Blob([str], { type: 'application/json' });
 }
@@ -56,7 +56,7 @@ export function toBlob(data) {
 export async function fromFile(file) {
   const text = await file.text();
   const obj = JSON.parse(text);
-  if (!obj || (obj.version !== 1 && obj.version !== undefined)) {
+  if (!obj || (obj.version !== 2 && obj.version !== 1 && obj.version !== undefined)) {
     throw new Error('Ungültiges Save-Format');
   }
   return obj;
