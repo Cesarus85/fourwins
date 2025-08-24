@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "commonjs",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "NODE_ENV=development node start.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "ws": "^8.13.0"
