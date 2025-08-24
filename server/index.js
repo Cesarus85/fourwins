@@ -117,7 +117,7 @@ wss.on('connection', (ws, room, code) => {
 
         room.players.forEach(p => {
             if (p !== ws && p.readyState === p.OPEN) {
-                p.send(msg);
+                p.send(JSON.stringify(data));
             }
         });
     });
