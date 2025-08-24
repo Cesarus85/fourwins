@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { WebSocketServer } = require('ws');
 
 const app = express();
@@ -22,6 +23,7 @@ function generateCode() {
 }
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '..')));
 
 app.post('/room', (_req, res) => {
   const code = generateCode();
