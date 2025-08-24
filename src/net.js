@@ -51,4 +51,10 @@ export function sendReset() {
   }
 }
 
+export function sendReady(player) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'ready', player }));
+  }
+}
+
 export function onMessage(fn) { if (typeof fn === 'function') handlers.push(fn); }
