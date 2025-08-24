@@ -44,6 +44,7 @@ app.post('/room', (_req, res) => {
     const code = generateCode();
     rooms[code] = {
         players: [],
+        ready: [],
         boardState: createBoardState(),
         timeout: setTimeout(() => delete rooms[code], ROOM_TTL_MS)
     };
@@ -78,16 +79,9 @@ wss.on('connection', (ws, room, code) => {
 
     room.players.push(ws);
     const playerNum = room.players.length;
+    room.ready[playerNum - 1] = false;
 
     ws.send(JSON.stringify({ type: 'join', player: playerNum }));
-
-    if (room.players.length === 2) {
-        room.players.forEach(p => {
-            if (p.readyState === p.OPEN) {
-                p.send(JSON.stringify({ type: 'start' }));
-            }
-        });
-    }
 
     ws.on('message', msg => {
         let data;
@@ -102,6 +96,25 @@ wss.on('connection', (ws, room, code) => {
             return;
         }
 
+        if (data.type === 'ready') {
+            const idx = room.players.indexOf(ws);
+            room.ready[idx] = true;
+            // notify both players who is ready
+            room.players.forEach((p, i) => {
+                if (p.readyState === p.OPEN) {
+                    p.send(JSON.stringify({ type: 'ready', player: idx + 1 }));
+                }
+            });
+            if (room.players.length === 2 && room.ready[0] && room.ready[1]) {
+                room.players.forEach(p => {
+                    if (p.readyState === p.OPEN) {
+                        p.send(JSON.stringify({ type: 'start' }));
+                    }
+                });
+            }
+            return;
+        }
+
         room.players.forEach(p => {
             if (p !== ws && p.readyState === p.OPEN) {
                 p.send(msg);
@@ -110,7 +123,11 @@ wss.on('connection', (ws, room, code) => {
     });
 
     ws.on('close', () => {
-        room.players = room.players.filter(p => p !== ws);
+        const idx = room.players.indexOf(ws);
+        if (idx !== -1) {
+            room.players.splice(idx, 1);
+            room.ready.splice(idx, 1);
+        }
         if (room.players.length === 0) {
             clearTimeout(room.timeout);
             delete rooms[code];

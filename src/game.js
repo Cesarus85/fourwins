@@ -3,7 +3,7 @@
 import * as THREE from 'https://unpkg.com/three@0.166.1/build/three.module.js';
 import { setHighlight, cellLocalCenter, createDiscMesh, spawnYLocal } from './board.js';
 import { chooseAiMove } from './ai.js';
-import { sendMove, sendReset, onMessage as netOnMessage } from './net.js';
+import { sendMove, sendReset, sendReady, onMessage as netOnMessage } from './net.js';
 
 let boardObj = null;
 let boardState = null;     // [row][col] -> 0 leer, 1 Gelb, 2 Rot
@@ -29,6 +29,8 @@ let online = false;
 let myPlayer = 1;
 let remotePlayer = 2;
 let pendingStart = false;
+let myReady = false;
+let remoteReady = false;
 
 netOnMessage(handleNetMessage);
 
@@ -40,6 +42,10 @@ function handleNetMessage(msg) {
       remotePlayer = myPlayer === 1 ? 2 : 1;
       aiEnabled = false;
       emit({ type: 'turn', player: currentPlayer });
+      if (boardObj && boardState) {
+        sendReady(myPlayer);
+        myReady = true;
+      }
       break;
     case 'start':
       if (boardObj && boardState) {
@@ -69,6 +75,13 @@ function handleNetMessage(msg) {
       }
       emit({ type: 'net_disconnect' });
       break;
+    case 'ready':
+      if (msg.player === myPlayer) {
+        myReady = true;
+      } else {
+        remoteReady = true;
+      }
+      break;
   }
 }
 
@@ -93,6 +106,13 @@ export function initGame(board) {
   history.length = 0;
   clearWinHighlight();
   emit({ type: 'turn', player: currentPlayer });
+
+  myReady = false;
+  remoteReady = false;
+  if (online) {
+    sendReady(myPlayer);
+    myReady = true;
+  }
 
   if (pendingStart) {
     console.log('Processing deferred start event after initGame');
