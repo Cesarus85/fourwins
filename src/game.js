@@ -19,7 +19,7 @@ const listeners = [];
 const history = [];        // {row,col,player,mesh}
 
 const aiOptions = { mode: 'minimax', depth: 5, timeMs: 350 };
-const aiEnabled = true;
+let aiEnabled = true;
 let aiTimer = 0;
 const aiDelayS = 0.35;
 let aiPending = false;
@@ -54,19 +54,20 @@ export function getBoardObject()  { return boardObj; }
 export function getBoardState()   { return boardState; }
 export function getCurrentPlayer(){ return currentPlayer; }
 export function isGameOver()      { return gameOver; }
-export function getAiOptions()    { return { ...aiOptions }; }
+export function getAiOptions()    { return { enabled: aiEnabled, ...aiOptions }; }
 export function setAiOptions(o) {
   if (!o) return;
   if (o.mode)        aiOptions.mode = o.mode;
   if (o.depth != null)  aiOptions.depth = Math.max(1, o.depth|0);
   if (o.timeMs!= null)  aiOptions.timeMs = Math.max(50, o.timeMs|0);
+  if (o.enabled != null) aiEnabled = !!o.enabled;
   emit({ type:'ai_options', options: getAiOptions() });
 }
 
 // Highlight: während KI-Zug ausblenden
 export function highlightColumn(colIndex) {
   if (!boardObj) return;
-  if (gameOver || currentPlayer === 2) { setHighlight(boardObj, null); return; }
+  if (gameOver || (aiEnabled && currentPlayer === 2)) { setHighlight(boardObj, null); return; }
   setHighlight(boardObj, colIndex);
 }
 
@@ -76,11 +77,12 @@ export function nextFreeRow(col) {
 }
 
 export function placeDiscHuman(col) {
-  if (!boardObj || gameOver || busy || currentPlayer !== 1) {
-    if (currentPlayer !== 1) emit({ type: 'invalid', reason: 'not_your_turn' });
+  if (!boardObj || gameOver || busy) return false;
+  if (aiEnabled && currentPlayer !== 1) {
+    emit({ type: 'invalid', reason: 'not_your_turn' });
     return false;
   }
-  return placeDisc(col, 1);
+  return placeDisc(col, currentPlayer);
 }
 
 function placeDisc(col, player) {
@@ -298,7 +300,8 @@ export function exportSnapshot() {
     currentPlayer,
     movesCount,
     history: history.map(({row,col,player}) => ({row,col,player})),
-    gameOver
+    gameOver,
+    aiEnabled
   };
 }
 
@@ -324,6 +327,7 @@ export function importSnapshot(snap) {
   currentPlayer = snap.currentPlayer ?? 1;
   movesCount = snap.movesCount ?? 0;
   gameOver = !!snap.gameOver;
+  aiEnabled = snap.aiEnabled != null ? !!snap.aiEnabled : true;
 
   // Discs gemäß State neu aufbauen (ohne Animation)
   for (let r = 0; r < rows; r++) {
