@@ -28,6 +28,7 @@ let aiPending = false;
 let online = false;
 let myPlayer = 1;
 let remotePlayer = 2;
+let pendingStart = false;
 
 netOnMessage(handleNetMessage);
 
@@ -41,18 +42,31 @@ function handleNetMessage(msg) {
       emit({ type: 'turn', player: currentPlayer });
       break;
     case 'start':
-      resetGame(true);
+      if (boardObj && boardState) {
+        resetGame(true);
+      } else {
+        pendingStart = true;
+        console.warn('Start received before initGame; deferring reset');
+      }
       break;
     case 'move':
       placeDisc(msg.col, remotePlayer);
       break;
     case 'reset':
-      resetGame(true);
+      if (boardObj && boardState) {
+        resetGame(true);
+      } else {
+        console.warn('Reset received before initGame; ignoring');
+      }
       break;
     case 'disconnect':
       online = false;
       aiEnabled = true;
-      resetGame(true);
+      if (boardObj && boardState) {
+        resetGame(true);
+      } else {
+        console.warn('Disconnect before initGame; skipping reset');
+      }
       emit({ type: 'net_disconnect' });
       break;
   }
@@ -79,6 +93,12 @@ export function initGame(board) {
   history.length = 0;
   clearWinHighlight();
   emit({ type: 'turn', player: currentPlayer });
+
+  if (pendingStart) {
+    console.log('Processing deferred start event after initGame');
+    pendingStart = false;
+    resetGame(true);
+  }
 }
 
 export function onGameEvent(fn) { if (typeof fn === 'function') listeners.push(fn); }
