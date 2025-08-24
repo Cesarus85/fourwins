@@ -1,1 +1,1 @@
-export const SERVER_HOST = `${location.hostname}:3000`;
+export const SERVER_HOST = location.host;
