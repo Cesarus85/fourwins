@@ -50,6 +50,8 @@ select{
   background:#0b1020; color:#e5e7eb; border:1px solid #334155;
   border-radius:10px; padding:0 .6rem; height: var(--btn-h);
   font-size:1em; min-width: 120px;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
 }
 input[type="checkbox"]{ width:22px; height:22px }
 
