@@ -16,6 +16,7 @@ import { setSfxEnabled, sfxPlace, sfxLanded, sfxInvalid, sfxWin, sfxDraw, sfxTur
 import { setHapticsEnabled, buzzSelect, buzzLanded, buzzWin, buzzInvalid } from './haptics.js';
 
 import * as storage from './storage.js';
+import { initDropdown, setDropdownValue } from './ui.js';
 
 let renderer, scene, camera;
 let boardPlaced = false;
@@ -55,8 +56,12 @@ function init() {
   setupAR(renderer, scene);
   setupInput(renderer, camera);
 
-  // AR-Button (wie in Step 6)
-  const btn = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'], optionalFeatures: [] });
+  // AR-Button mit DOM-Overlay
+  const btn = ARButton.createButton(renderer, {
+    requiredFeatures: ['hit-test'],
+    optionalFeatures: ['dom-overlay'],
+    domOverlay: { root: document.getElementById('hud') }
+  });
   document.body.appendChild(btn);
 
   wireUiControls();
@@ -156,10 +161,10 @@ function wireUiControls() {
   elUndo1?.addEventListener('click', () => undo(1));
   elUndo2?.addEventListener('click', () => undo(2));
 
-  elOpp?.addEventListener('change', () => setAiOptions({ enabled: elOpp.value === 'ai' }));
-  elMode?.addEventListener('change', () => setAiOptions({ mode: elMode.value }));
-  elDepth?.addEventListener('change', () => setAiOptions({ depth: parseInt(elDepth.value, 10) }));
-  elTime?.addEventListener('change', () => setAiOptions({ timeMs: parseInt(elTime.value, 10) }));
+  elOpp  && initDropdown(elOpp,  { onChange: val => setAiOptions({ enabled: val === 'ai' }) });
+  elMode && initDropdown(elMode, { onChange: val => setAiOptions({ mode: val }) });
+  elDepth&& initDropdown(elDepth,{ onChange: val => setAiOptions({ depth: parseInt(val, 10) }) });
+  elTime && initDropdown(elTime, { onChange: val => setAiOptions({ timeMs: parseInt(val, 10) }) });
 
   elSfx?.addEventListener('change', () => { SFX = elSfx.checked; setSfxEnabled(SFX); if (SFX) ensureAudio(); });
   elHap?.addEventListener('change', () => { HAP = elHap.checked; setHapticsEnabled(HAP); });
@@ -265,8 +270,14 @@ function applyLoadedObject(st) {
   if (st.options?.aiEnabled != null) nextAi.enabled = !!st.options.aiEnabled;
   if (Object.keys(nextAi).length) {
     setAiOptions(nextAi);
-    const elOpp = document.getElementById('opponent');
-    if (elOpp && nextAi.enabled != null) elOpp.value = nextAi.enabled ? 'ai' : 'human';
+    const elOpp   = document.getElementById('opponent');
+    const elMode  = document.getElementById('aiMode');
+    const elDepth = document.getElementById('aiDepth');
+    const elTime  = document.getElementById('aiTime');
+    if (elOpp && nextAi.enabled != null) setDropdownValue(elOpp, nextAi.enabled ? 'ai' : 'human');
+    if (elMode && nextAi.mode) setDropdownValue(elMode, nextAi.mode);
+    if (elDepth && nextAi.depth != null) setDropdownValue(elDepth, String(nextAi.depth));
+    if (elTime && nextAi.timeMs != null) setDropdownValue(elTime, String(nextAi.timeMs));
   }
 
   // Brett sicherstellen
