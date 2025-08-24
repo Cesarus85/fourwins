@@ -79,3 +79,27 @@ select {
   -webkit-user-select: auto;
   user-select: auto;
 }
+
+.four-hint {
+  position:absolute;
+  top:0;
+  right:0;
+  width:50%;
+  height:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.four-hint img {
+  max-width:100%;
+  height:auto;
+}
+
+@media (max-width: 600px) {
+  .four-hint {
+    position:static;
+    width:100%;
+    margin-top:1rem;
+  }
+}
