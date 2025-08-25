@@ -87,6 +87,13 @@ function init() {
     boardPlaced = false;
     const ret = getReticle();
     if (ret) ret.visible = true;
+    const hud = document.getElementById('hud');
+    if (hud) {
+      hud.style.display = 'block';
+      hud.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      location.reload();
+    }
   });
 
   // Scene & Camera
