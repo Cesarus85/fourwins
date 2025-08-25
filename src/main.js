@@ -57,7 +57,7 @@ function showResultSign(text, color) {
   const geometry = new THREE.PlaneGeometry(0.6, 0.3);
   resultSign = new THREE.Mesh(geometry, material);
   resultSign.position.copy(boardRoot.position);
-  resultSign.position.y += 0.35;
+  resultSign.position.y += 0.7;
   resultSign.quaternion.copy(camera.quaternion);
   scene.add(resultSign);
 }
