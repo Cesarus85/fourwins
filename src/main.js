@@ -8,7 +8,7 @@ import { createBoard } from './board.js';
 import {
   initGame, update as updateGame, onGameEvent,
   setAiOptions, getAiOptions, resetGame, undo,
-  exportSnapshot, importSnapshot
+  exportSnapshot, importSnapshot, getMyPlayer
 } from './game.js';
 import { setupInput, updateInput } from './input.js';
 
@@ -22,12 +22,45 @@ import { onMessage as onNetMessage } from './net.js';
 let renderer, scene, camera;
 let boardPlaced = false;
 let boardRoot = null;
+let resultSign = null;
 let lastTs = 0;
 
 let SFX = true, HAP = true, SHADOWS = false;
 
 init();
 animate();
+
+function showResultSign(text, color) {
+  if (!boardRoot) return;
+  if (resultSign) {
+    scene.remove(resultSign);
+    resultSign.material?.map?.dispose?.();
+    resultSign.material?.dispose?.();
+    resultSign.geometry?.dispose?.();
+    resultSign = null;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 64px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+  const geometry = new THREE.PlaneGeometry(0.6, 0.3);
+  resultSign = new THREE.Mesh(geometry, material);
+  resultSign.position.copy(boardRoot.position);
+  resultSign.position.y += 0.35;
+  resultSign.quaternion.copy(camera.quaternion);
+  scene.add(resultSign);
+}
 
 function init() {
   // Renderer
@@ -37,6 +70,24 @@ function init() {
   renderer.xr.enabled = true;
   renderer.shadowMap.enabled = SHADOWS;
   document.body.appendChild(renderer.domElement);
+
+  renderer.xr.addEventListener('sessionend', () => {
+    if (boardRoot) {
+      scene.remove(boardRoot);
+      resetGame();
+      boardRoot = null;
+    }
+    if (resultSign) {
+      scene.remove(resultSign);
+      resultSign.material?.map?.dispose?.();
+      resultSign.material?.dispose?.();
+      resultSign.geometry?.dispose?.();
+      resultSign = null;
+    }
+    boardPlaced = false;
+    const ret = getReticle();
+    if (ret) ret.visible = true;
+  });
 
   // Scene & Camera
   scene = new THREE.Scene();
@@ -92,10 +143,20 @@ function init() {
         if (hint) hint.textContent = ev.player === 1
           ? 'Gelb gewinnt! 🎉'
           : aiOn ? 'Rot (KI) gewinnt! 🤖🏆' : 'Rot gewinnt! 🏆';
-        if (SFX) sfxWin(); if (HAP) buzzWin(session); break;
+        if (SFX) sfxWin(); if (HAP) buzzWin(session);
+        {
+          const me = getMyPlayer();
+          const winLocal = ev.player === me;
+          showResultSign(winLocal ? 'Du hast gewonnen!' : 'Du hast verloren!', winLocal ? 'green' : 'red');
+          setTimeout(() => renderer.xr.getSession()?.end(), 2500);
+        }
+        break;
       case 'draw':
         if (hint) hint.textContent = 'Unentschieden – keine freien Felder.';
-        if (SFX) sfxDraw(); break;
+        if (SFX) sfxDraw();
+        showResultSign('Unentschieden', '#666');
+        setTimeout(() => renderer.xr.getSession()?.end(), 2500);
+        break;
       case 'invalid':
         if (hint) hint.textContent = ev.reason === 'column_full'
           ? 'Spalte ist voll – wähle eine andere.'
@@ -331,6 +392,7 @@ function render(ts, frame) {
     updateInput(frame);
     updateGame(dt);
   }
+  if (resultSign) resultSign.quaternion.copy(camera.quaternion);
 
   renderer.render(scene, camera);
 }
