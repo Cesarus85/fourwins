@@ -128,6 +128,7 @@ export function getBoardObject()  { return boardObj; }
 export function getBoardState()   { return boardState; }
 export function getCurrentPlayer(){ return currentPlayer; }
 export function isGameOver()      { return gameOver; }
+export function getMyPlayer()     { return myPlayer; }
 export function getAiOptions()    { return { enabled: aiEnabled, ...aiOptions }; }
 export function setAiOptions(o) {
   if (!o) return;
